@@ -1,0 +1,348 @@
+{
+  "name": "Legal Document Translation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        224
+      ],
+      "id": "4e0b7b40-1ea6-4162-8c70-bc96597bbb52",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/SYNTHETIC_Divorce_Decree.pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -624,
+        224
+      ],
+      "id": "91fbee23-f8b0-4e62-8907-eb815d23b28f",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8002/ocr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -432,
+        224
+      ],
+      "id": "ef5b6c25-9c1e-44af-b3be-0ecd2eb7886c",
+      "name": "OCR Scan"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8001/detect-pii",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "page_index",
+              "value": "={{ $json.page_index }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -16,
+        224
+      ],
+      "id": "ec648fa1-3ca9-4bf8-bea5-de77fee9fe09",
+      "name": "Detect PII",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "page_index",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        176,
+        48
+      ],
+      "id": "da017498-78bc-4805-b553-69b3605dcc6b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8003/redact",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "={{ $('Read/Write Files from Disk').item.binary.data }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        384,
+        -48
+      ],
+      "id": "2207fe98-9520-474e-a100-c9f171145825",
+      "name": "Redact PII"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8004/anonymize",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        384,
+        128
+      ],
+      "id": "6e746e70-b596-4bba-bd7b-fdb8610e0114",
+      "name": "Anonymize PII"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-flash-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\nRules:\n\nTranslate everything. Do not summarize, explain, comment, add headers, or omit anything.\nPreserve exactly, without translating: case numbers, monetary figures, and any legal citation or statute reference.\nUse formal legal register appropriate to the target language.\nMark any genuinely illegible passage as [ILLEGIBLE].\n\nPlaceholder tokens:\n\nThe text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\nReproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\nYou may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nText to translate:\n{{ $json.anonymized_text }}\nOutput only the translated text. No preamble, no notes, no quotation marks, no JSON.",
+              "role": "model"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        784,
+        128
+      ],
+      "id": "d63bf7bd-fb3f-44ca-9f07-8d10f211b2b9",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1Ioz7pl4xxxfcHYF",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Detect Direction — deterministic, API-less.\n// Turkish uses characters English never does. We count how many appear in the\n// page's anonymized text; any meaningful presence => the source is Turkish.\n// Emits `direction` as a field BOTH the translator and the glossary read.\n// This is real detection, not a stub — the demo is genuinely bidirectional.\n\nconst text = $json.anonymized_text || \"\";\n\n// Characters that occur in Turkish but not in standard English orthography.\nconst turkishChars = (text.match(/[ışğçöüİı]/g) || []).length;\n\n// A tiny threshold guards against a stray character (e.g. a name, a stray\n// diacritic in an English doc). A genuinely Turkish page clears this easily;\n// an English page sits at ~0.\nconst isTurkish = turkishChars >= 3;\n\nreturn {\n  json: {\n    ...$json,                       // carry the whole item through untouched\n    direction: isTurkish ? \"tr>en\" : \"en>tr\",\n    direction_debug: {             // visible in the run, aids demo narration\n      turkish_char_count: turkishChars,\n      decided: isTurkish ? \"tr>en\" : \"en>tr\",\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        128
+      ],
+      "id": "3ccea771-c8cf-46ce-9636-347335b21943",
+      "name": "Set Translation Direction"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "pages",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        224
+      ],
+      "id": "570efd4f-4755-48fa-8918-8e8bdc0cc0f8",
+      "name": "Split Document Pages"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Wrap to JSON — structure the translation output for downstream stages.\n// The model (or stub) returned PLAIN TEXT; this node builds the structured\n// item around it. n8n owns the structuring, not the LLM — that's what keeps\n// placeholders safe (the model never had to emit JSON).\n//\n// Run mode: Run Once for Each Item (per-page, keeps page_index aligned).\n\n// ⬇️ THE ONE FIELD TO ADJUST after you see the real Gemini output.\n// Common candidates by n8n/Gemini node version: $json.text, $json.content,\n// $json.response, $json.message.content. Run the node once, look at where the\n// translated string actually lands, and set this to match.\nconst translatedText = $json.text || \"\";\n\nreturn {\n  json: {\n    page_index: $json.page_index,        // keeps this page pairable downstream\n    direction: $json.direction,          // read by the eventual glossary + restore\n    translated_text: translatedText,     // the (still-tokenized) translation\n    restore_map: $json.restore_map,      // LOCAL — rides to restore, never to cloud\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        128
+      ],
+      "id": "fcd1e213-9cfe-4e8d-8f8e-f8b0e59b81d9",
+      "name": "Wrap in JSON"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "OCR Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Scan": {
+      "main": [
+        [
+          {
+            "node": "Split Document Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect PII": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Redact PII",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Anonymize PII",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anonymize PII": {
+      "main": [
+        [
+          {
+            "node": "Set Translation Direction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Wrap in JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Translation Direction": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Document Pages": {
+      "main": [
+        [
+          {
+            "node": "Detect PII",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d191b97f-444a-4ea2-ad58-8b75c00aa3d3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f21dbdd361807335f5caee2e38b1e0e5b069e665ffe28855d51a6ed46bfeb4c0"
+  },
+  "id": "ZWbWKQqNne0K1UnW",
+  "tags": []
+}
