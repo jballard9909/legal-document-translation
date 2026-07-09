@@ -1,0 +1,84 @@
+{
+  "dpi": 200,
+  "page_width_px": 1700,
+  "page_height_px": 2200,
+  "elements": [
+    {
+      "id": "body_control",
+      "type": "body_text",
+      "box_px": [
+        200,
+        242,
+        1500,
+        436
+      ],
+      "expected_unaccounted": false
+    },
+    {
+      "id": "stamp_isolated",
+      "type": "stamp_isolated",
+      "box_px": [
+        1294,
+        356,
+        1594,
+        656
+      ],
+      "expected_unaccounted": true
+    },
+    {
+      "id": "body_light_context",
+      "type": "body_text",
+      "box_px": [
+        200,
+        575,
+        1500,
+        692
+      ],
+      "expected_unaccounted": false
+    },
+    {
+      "id": "stamp_light_overlap",
+      "type": "stamp_light_overlap",
+      "box_px": [
+        1156,
+        528,
+        1456,
+        828
+      ],
+      "expected_unaccounted": true
+    },
+    {
+      "id": "body_heavy_context",
+      "type": "body_text",
+      "box_px": [
+        200,
+        825,
+        1500,
+        981
+      ],
+      "expected_unaccounted": false
+    },
+    {
+      "id": "stamp_heavy_overlap",
+      "type": "stamp_heavy_overlap",
+      "box_px": [
+        683,
+        794,
+        983,
+        1094
+      ],
+      "expected_unaccounted": true
+    },
+    {
+      "id": "signature",
+      "type": "signature",
+      "box_px": [
+        244,
+        1300,
+        739,
+        1411
+      ],
+      "expected_unaccounted": true
+    }
+  ]
+}

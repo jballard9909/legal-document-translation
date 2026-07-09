@@ -1,0 +1,11 @@
+# data — never commit, even synthetic
+*.pdf
+*.png
+*_overlay*.png
+/outputs/
+/uploads/
+
+# env / noise
+__pycache__/
+*.pyc
+.env
