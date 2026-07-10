@@ -148,15 +148,14 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-flash-latest",
+          "value": "models/gemini-2.5-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-flash-latest"
+          "cachedResultName": "models/gemini-2.5-flash"
         },
         "messages": {
           "values": [
             {
-              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\nRules:\n\nTranslate everything. Do not summarize, explain, comment, add headers, or omit anything.\nPreserve exactly, without translating: case numbers, monetary figures, and any legal citation or statute reference.\nUse formal legal register appropriate to the target language.\nMark any genuinely illegible passage as [ILLEGIBLE].\n\nPlaceholder tokens:\n\nThe text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\nReproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\nYou may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nText to translate:\n{{ $json.anonymized_text }}\nOutput only the translated text. No preamble, no notes, no quotation marks, no JSON.",
-              "role": "model"
+              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\nRules:\n\nTranslate everything. Do not summarize, explain, comment, add headers, or omit anything.\nPreserve exactly, without translating: case numbers, monetary figures, and any legal citation or statute reference.\nUse formal legal register appropriate to the target language.\nMark any genuinely illegible passage as [ILLEGIBLE].\n\nPlaceholder tokens:\n\nThe text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\nReproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\nYou may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nText to translate:\n{{ $json.anonymized_text }}\nOutput only the translated text. No preamble, no notes, no quotation marks, no JSON."
             }
           ]
         },
@@ -209,7 +208,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Wrap to JSON — structure the translation output for downstream stages.\n// The model (or stub) returned PLAIN TEXT; this node builds the structured\n// item around it. n8n owns the structuring, not the LLM — that's what keeps\n// placeholders safe (the model never had to emit JSON).\n//\n// Run mode: Run Once for Each Item (per-page, keeps page_index aligned).\n\n// ⬇️ THE ONE FIELD TO ADJUST after you see the real Gemini output.\n// Common candidates by n8n/Gemini node version: $json.text, $json.content,\n// $json.response, $json.message.content. Run the node once, look at where the\n// translated string actually lands, and set this to match.\nconst translatedText = $json.text || \"\";\n\nreturn {\n  json: {\n    page_index: $json.page_index,        // keeps this page pairable downstream\n    direction: $json.direction,          // read by the eventual glossary + restore\n    translated_text: translatedText,     // the (still-tokenized) translation\n    restore_map: $json.restore_map,      // LOCAL — rides to restore, never to cloud\n  },\n};"
+        "jsCode": "// Wrap to JSON — structure the translation output for downstream stages.\n// The model (or stub) returned PLAIN TEXT; this node builds the structured\n// item around it. n8n owns the structuring, not the LLM — that's what keeps\n// placeholders safe (the model never had to emit JSON).\n//\n// Run mode: Run Once for Each Item (per-page, keeps page_index aligned).\n\n// ⬇️ THE ONE FIELD TO ADJUST after you see the real Gemini output.\n// Common candidates by n8n/Gemini node version: $json.text, $json.content,\n// $json.response, $json.message.content. Run the node once, look at where the\n// translated string actually lands, and set this to match.\nconst translatedText = $json.content.parts[0].text || \"\";\n\nreturn {\n  json: {\n    page_index: $('Set Translation Direction').item.json.page_index,        // keeps this page pairable downstream\n    direction: $('Set Translation Direction').item.json.direction,          // read by the eventual glossary + restore\n    translated_text: translatedText,     // the (still-tokenized) translation\n    restore_map: $('Set Translation Direction').item.json.restore_map,      // LOCAL — rides to restore, never to cloud\n  },\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -338,7 +337,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "d191b97f-444a-4ea2-ad58-8b75c00aa3d3",
+  "versionId": "122aaded-4c35-4645-8cd8-4a7785fe3a0c",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f21dbdd361807335f5caee2e38b1e0e5b069e665ffe28855d51a6ed46bfeb4c0"
