@@ -20,8 +20,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1.1,
       "position": [
-        -1056,
-        720
+        -1248,
+        800
       ],
       "id": "03e20152-cc68-4c3d-ab60-e5110d2c4362",
       "name": "Read/Write Files from Disk"
@@ -263,8 +263,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -1456,
-        1344
+        -1440,
+        1376
       ],
       "id": "32b588ca-a213-4e69-b89e-0ad2fd836728",
       "name": "Switch"
@@ -277,7 +277,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -240,
+        -224,
         1104
       ],
       "id": "3ebdd369-fa8d-4aba-8456-ba0f446eb3bb",
@@ -311,7 +311,9 @@
             "source_doc": "={{ $('Parse and Dedupe').item.json.source_doc }}",
             "review_note": "={{ $('Parse and Dedupe').item.json.review_note }}"
           },
-          "matchingColumns": [],
+          "matchingColumns": [
+            "source_term"
+          ],
           "schema": [
             {
               "id": "source_term",
@@ -320,7 +322,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "target_term",
@@ -397,8 +400,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -1248,
-        1488
+        -1232,
+        1520
       ],
       "id": "b1de21ef-ffd1-4076-a909-875087d9c923",
       "name": "Update Term",
@@ -512,8 +515,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -1248,
-        1312
+        -1232,
+        1344
       ],
       "id": "6a34bbd5-d29e-4d2e-aaed-5fc9b0a3b472",
       "name": "Append New Term",
@@ -545,8 +548,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -1232,
-        592
+        -1248,
+        624
       ],
       "id": "6c93556c-e1ec-49fe-84ef-89328da359cd",
       "name": "Read Glossary",
@@ -627,7 +630,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse + Dedupe — Run Once for All Items.\n// Consumes all 5 pages' raw Gemini extractor outputs. For each: strip code\n// fences, JSON.parse the array. Flatten all pages into one term list. Then\n// dedupe by (source_term, direction): collapse agreeing duplicates, and for\n// conflicting translations, keep the highest-confidence as target_term while\n// recording ALL competing translations in review_note for the human.\n\nconst items = $input.all();\nconst sourceDoc = \"SYNTHETIC_Divorce_Decree\";\n\n// --- 1. Parse every page's array, flatten into one list of raw pairs ---\nconst allPairs = [];\nfor (const item of items) {\n  const raw = item.json?.content?.parts?.[0]?.text || \"[]\";\n  // Strip ```json ... ``` or ``` ... ``` fences if Gemini wrapped the output.\n  const cleaned = raw.replace(/```json\\s*/gi, \"\").replace(/```/g, \"\").trim();\n\n  let parsed;\n  try {\n    parsed = JSON.parse(cleaned);\n    if (!Array.isArray(parsed)) parsed = [];\n  } catch (e) {\n    parsed = [];   // malformed page -> contribute nothing, don't crash the run\n  }\n\n  // Direction: read from the item if the extractor carried it, else default.\n  // (The extractor's response item may not carry direction; fall back to en>tr\n  //  for this English-source demo. Adjust if you thread direction through.)\n  const direction = item.json?.direction || \"en>tr\";\n\n  for (const p of parsed) {\n    if (!p || !p.source_term || !p.target_term) continue;   // skip junk\n    allPairs.push({\n      source_term: String(p.source_term).trim(),\n      target_term: String(p.target_term).trim(),\n      direction,\n      confidence: typeof p.confidence === \"number\" ? p.confidence : null,\n    });\n  }\n}\n\n// --- 2. Group by (source_term, direction) ---\n// Key is case-sensitive on source_term intentionally: \"Order\" vs \"order\" could\n// be different usages; the human can merge if needed. Direction is part of key\n// because a term is a distinct entry per translation direction.\nconst groups = new Map();\nfor (const pair of allPairs) {\n  const key = `${pair.source_term.toLowerCase()}||${pair.direction}`;\n  if (!groups.has(key)) groups.set(key, []);\n  groups.get(key).push(pair);\n}\n\n// --- 3. Collapse each group to ONE row, flag conflicts ---\nconst deduped = [];\nfor (const [key, pairs] of groups) {\n  // Distinct target translations seen for this source term.\n  const distinctTargets = [...new Set(pairs.map(p => p.target_term))];\n\n  // Highest-confidence pair becomes the chosen target_term.\n  // (null confidence sorts as lowest.)\n  const best = pairs.reduce((a, b) =>\n    ((b.confidence ?? -1) > (a.confidence ?? -1) ? b : a)\n  );\n\n// Prefer a non-all-caps display form for the stored source_term; headings\n  // in ALL-CAPS read poorly in a glossary. Fall back to best-confidence form.\n  const displayForm = pairs.find(p => p.source_term !== p.source_term.toUpperCase())\n    || best;\n  // ...then use displayForm.source_term as the stored source_term.\n  \n  let reviewNote = \"\";\n  if (distinctTargets.length > 1) {\n    // Conflict: record ALL competing translations for the human to arbitrate.\n    reviewNote = \"CONFLICT — competing translations: \" +\n      distinctTargets.map(t => `\"${t}\"`).join(\" | \");\n  }\n\n  deduped.push({\n    json: {\n      source_term: displayForm.source_term,\n      target_term: best.target_term,      // highest-confidence pick\n      direction: best.direction,\n      confidence: best.confidence,\n      verified: \"FALSE\",                  // AI proposals always unverified\n      source_doc: sourceDoc,\n      review_note: reviewNote,            // empty for clean terms\n    },\n  });\n}\n\nreturn deduped;"
+        "jsCode": "// Parse + Dedupe — Run Once for All Items.\n// Consumes all 5 pages' raw Gemini extractor outputs. For each: strip code\n// fences, JSON.parse the array. Flatten all pages into one term list. Then\n// dedupe by (source_term, direction): collapse agreeing duplicates, and for\n// conflicting translations, keep the highest-confidence as target_term while\n// recording ALL competing translations in review_note for the human.\n\nconst items = $input.all();\nconst sourceDoc = \"SYNTHETIC_Divorce_Decree\";\n\n// --- 1. Parse every page's array, flatten into one list of raw pairs ---\nconst allPairs = [];\nfor (const item of items) {\n  const raw = item.json?.content?.parts?.[0]?.text || \"[]\";\n  // Strip ```json ... ``` or ``` ... ``` fences if Gemini wrapped the output.\n  const cleaned = raw.replace(/```json\\s*/gi, \"\").replace(/```/g, \"\").trim();\n\n  let parsed;\n  try {\n    parsed = JSON.parse(cleaned);\n    if (!Array.isArray(parsed)) parsed = [];\n  } catch (e) {\n    parsed = [];   // malformed page -> contribute nothing, don't crash the run\n  }\n\n  // Direction: read from the item if the extractor carried it, else default.\n  // (The extractor's response item may not carry direction; fall back to en>tr\n  //  for this English-source demo. Adjust if you thread direction through.)\n  const direction = item.json?.direction || \"en>tr\";\n\n  for (const p of parsed) {\n    if (!p || !p.source_term || !p.target_term) continue;   // skip junk\n    allPairs.push({\n      source_term: String(p.source_term).trim(),\n      target_term: String(p.target_term).trim(),\n      direction,\n      confidence: typeof p.confidence === \"number\" ? p.confidence : null,\n    });\n  }\n}\n\n// --- 2. Group by (source_term, direction) ---\n// Key is case-sensitive on source_term intentionally: \"Order\" vs \"order\" could\n// be different usages; the human can merge if needed. Direction is part of key\n// because a term is a distinct entry per translation direction.\nconst groups = new Map();\nfor (const pair of allPairs) {\n  const key = `${pair.source_term.toLowerCase()}||${pair.direction}`;\n  if (!groups.has(key)) groups.set(key, []);\n  groups.get(key).push(pair);\n}\n\n// --- 3. Collapse each group to ONE row, flag conflicts ---\nconst deduped = [];\nfor (const [key, pairs] of groups) {\n\n  // Highest-confidence pair (kept — drives confidence + fallback display).\n  const best = pairs.reduce((a, b) =>\n    ((b.confidence ?? -1) > (a.confidence ?? -1) ? b : a)\n  );\n\n  // Non-all-caps display form for source_term (kept — heading vs body casing).\n  const displayForm = pairs.find(p => p.source_term !== p.source_term.toUpperCase())\n    || best;\n\n  // --- Collapse target translations that differ ONLY by case ---\n  // \"Davacı\" and \"davacı\" are the same translation, capitalized differently by\n  // sentence position. Group targets by Turkish-lowercased form; only genuinely\n  // different translations (different letters, not just case) remain distinct.\n  const targetGroups = new Map();\n  for (const p of pairs) {\n    const norm = p.target_term.toLocaleLowerCase(\"tr\");\n    if (!targetGroups.has(norm)) {\n      targetGroups.set(norm, p.target_term);   // keep first-seen casing for display\n    }\n  }\n  const distinctTargets = [...targetGroups.values()];\n\n  // Choose display target: prefer a capitalized form over all-lowercase.\n  let chosenTarget = best.target_term;\n  const capitalizedVariant = distinctTargets.find(\n    t => t[0] === t[0].toLocaleUpperCase(\"tr\") && t[0] !== t[0].toLocaleLowerCase(\"tr\")\n  );\n  if (capitalizedVariant &&\n      best.target_term === best.target_term.toLocaleLowerCase(\"tr\")) {\n    chosenTarget = capitalizedVariant;\n  }\n\n  let reviewNote = \"\";\n  if (distinctTargets.length > 1) {\n    reviewNote = \"CONFLICT — competing translations: \" +\n      distinctTargets.map(t => `\"${t}\"`).join(\" | \");\n  }\n\n  deduped.push({\n    json: {\n      source_term: displayForm.source_term,\n      target_term: chosenTarget,          // ← case-collapsed pick (was best.target_term)\n      direction: best.direction,\n      confidence: best.confidence,\n      verified: \"FALSE\",\n      source_doc: sourceDoc,\n      review_note: reviewNote,\n    },\n  });\n}\n\nreturn deduped;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -637,6 +640,20 @@
       ],
       "id": "2e3a94e4-c1a5-4e48-af51-210cd98acf9d",
       "name": "Parse and Dedupe"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1056,
+        720
+      ],
+      "id": "3c323b4f-6a0d-43ac-84df-2d110c3af01b",
+      "name": "Merge1"
     }
   ],
   "pinData": {},
@@ -645,12 +662,12 @@
       "main": [
         [
           {
-            "node": "Read Glossary",
+            "node": "Read/Write Files from Disk",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Read/Write Files from Disk",
+            "node": "Read Glossary",
             "type": "main",
             "index": 0
           }
@@ -661,9 +678,9 @@
       "main": [
         [
           {
-            "node": "OCR Scan",
+            "node": "Merge1",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -786,7 +803,13 @@
     },
     "Read Glossary": {
       "main": [
-        []
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Extract Terms for Glossary": {
@@ -821,6 +844,17 @@
           }
         ]
       ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "OCR Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -829,7 +863,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "35ec7965-f0ea-4d89-917f-e830db92d3d2",
+  "versionId": "dbb6e1b2-08aa-45de-8b0c-4309d45fdacc",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
