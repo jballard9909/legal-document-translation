@@ -152,7 +152,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1440,
+        -1264,
         1104
       ],
       "id": "a8a33494-b374-45b3-8788-98ffb96644bc",
@@ -180,7 +180,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -896,
+        -720,
         1104
       ],
       "id": "b318a3a5-e907-4531-8874-4840272c41d2",
@@ -277,7 +277,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -224,
+        -48,
         1104
       ],
       "id": "3ebdd369-fa8d-4aba-8456-ba0f446eb3bb",
@@ -583,7 +583,7 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
       "position": [
-        -720,
+        -544,
         1104
       ],
       "id": "5fb25ec9-a1b0-47da-a197-f8210a40c267",
@@ -616,7 +616,7 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
       "position": [
-        -1216,
+        -1040,
         1104
       ],
       "id": "bd3df042-ccc1-4cf7-988e-e9c059b7a297",
@@ -635,7 +635,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -416,
+        -240,
         1104
       ],
       "id": "2e3a94e4-c1a5-4e48-af51-210cd98acf9d",
@@ -654,6 +654,20 @@
       ],
       "id": "3c323b4f-6a0d-43ac-84df-2d110c3af01b",
       "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build Structured Text — reconstruct paragraph boundaries from OCR hierarchy.\n//\n// WHY THIS EXISTS\n// ---------------\n// /ocr's `text` field joins EVERY line with \"\\n\" — so a mid-sentence wrap and a\n// real paragraph break look identical downstream. The structure isn't lost, it's\n// just not serialized: each line carries a line_id of \"block:par:line\", and\n// Tesseract already knows which lines share a paragraph. This node reads that\n// hierarchy back out and emits `structured_text`, where intra-paragraph wraps\n// collapse to spaces and real block/paragraph boundaries become blank lines.\n//\n// WHAT IT DOES NOT DO\n// -------------------\n// It never mutates `text` or `anonymized_text`. `text` is the coordinate system\n// that /detect-pii spans and /ocr char_spans both index into — changing it would\n// break /redact's char_span -> pixel mapping. This node is purely ADDITIVE.\n//\n// THE INDEX-ZIP GUARANTEE\n// -----------------------\n// We pair anonymized_text.split(\"\\n\")[i] with lines[i]. That's valid because in\n// ocr_extract.extract(), `full_text` and `lines` are built from the SAME `order`\n// array in the same sequence, and words never contain \"\\n\". Anonymization\n// preserves that pairing — UNLESS a PII span crosses a line break and its\n// placeholder swallows the \"\\n\". Then every later line pairs with the wrong\n// line_id and we'd emit plausible-looking, silently-wrong paragraphs. Hence the\n// count guard below: verify the precondition, don't guess. Same instinct as\n// /redact's raster-parity tripwire.\n\nconst anonText = $json.anonymized_text || \"\";\nconst pageIndex = $json.page_index;\n\n// --- Recover `lines` from /ocr -------------------------------------------\n// The /anonymize HTTP node replaced the item, so `lines` is gone from $json.\n// Match on page_index rather than using $('Merge').item: that would rely on\n// pairedItem metadata surviving an HTTP node's item replacement. Matching by a\n// real document-structural fact is order-independent and provably correct —\n// the same reasoning behind the Merge node's By Matching Fields config.\nconst mergedItem = $('Merge').all().find(\n  (i) => i.json.page_index === pageIndex\n);\nconst ocrLines = mergedItem?.json?.lines ?? null;\n\n// --- Soft-fail helper -----------------------------------------------------\n// A structure failure must NEVER take down a run. On any precondition miss we\n// pass anonymized_text through verbatim: the page translates exactly as it does\n// today, flagged so the failure is visible rather than silent.\nfunction softFail(reason, anonCount, ocrCount) {\n  return {\n    json: {\n      ...$json,\n      structured_text: anonText,\n      structure_debug: {\n        ocr_line_count: ocrCount,\n        anon_line_count: anonCount,\n        paragraph_count: null,\n        structure_recovered: false,\n        reason,\n      },\n    },\n  };\n}\n\nconst anonLines = anonText.split(\"\\n\");\n\n// --- Preconditions --------------------------------------------------------\nif (!anonText) {\n  return softFail(\"empty anonymized_text\", anonLines.length, ocrLines?.length ?? null);\n}\nif (!mergedItem) {\n  return softFail(`no Merge item matching page_index ${pageIndex}`, anonLines.length, null);\n}\nif (!Array.isArray(ocrLines) || ocrLines.length === 0) {\n  return softFail(\"missing or empty lines[] from /ocr\", anonLines.length, ocrLines?.length ?? null);\n}\n// THE guard. A mismatch means the index-zip assumption is broken — most likely a\n// placeholder swallowed a newline (a known anonymizer boundary case, logged for\n// anonymize_core_v2). This detects it; it does not fix it.\nif (anonLines.length !== ocrLines.length) {\n  return softFail(\n    \"line count mismatch (anonymization may have swallowed a newline)\",\n    anonLines.length,\n    ocrLines.length\n  );\n}\n\n// --- Reconstruct paragraphs ----------------------------------------------\n// line_id is the full \"block:par:line\" triple. Drop the line component: lines\n// sharing a block:par prefix are the same paragraph, wrapped. A change of prefix\n// is a real boundary.\nconst paragraphs = [];\nlet current = [];\nlet prevPrefix = null;\n\nfor (let i = 0; i < anonLines.length; i++) {\n  const lineId = ocrLines[i]?.line_id;\n  if (typeof lineId !== \"string\") {\n    return softFail(`malformed line_id at index ${i}`, anonLines.length, ocrLines.length);\n  }\n  const prefix = lineId.split(\":\").slice(0, 2).join(\":\");   // \"block:par\"\n\n  if (prevPrefix !== null && prefix !== prevPrefix) {\n    paragraphs.push(current.join(\" \"));   // close the open paragraph\n    current = [];\n  }\n  current.push(anonLines[i]);\n  prevPrefix = prefix;\n}\nif (current.length) {\n  paragraphs.push(current.join(\" \"));     // flush the final paragraph\n}\n\n// Wraps collapse to spaces within a paragraph; paragraphs separate with a blank\n// line. This is the shape the translator prompt (Stage 2) will consume.\nconst structuredText = paragraphs.join(\"\\n\\n\");\n\nreturn {\n  json: {\n    ...$json,                     // carry the item through untouched\n    structured_text: structuredText,\n    structure_debug: {\n      ocr_line_count: ocrLines.length,\n      anon_line_count: anonLines.length,\n      paragraph_count: paragraphs.length,\n      structure_recovered: true,\n      reason: null,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1456,
+        1104
+      ],
+      "id": "7c764fb8-b0d7-4923-a2ce-e4b3a7f9d0aa",
+      "name": "Build Structured Text"
     }
   ],
   "pinData": {},
@@ -727,7 +741,7 @@
       "main": [
         [
           {
-            "node": "Set Translation Direction",
+            "node": "Build Structured Text",
             "type": "main",
             "index": 0
           }
@@ -855,6 +869,17 @@
           }
         ]
       ]
+    },
+    "Build Structured Text": {
+      "main": [
+        [
+          {
+            "node": "Set Translation Direction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -863,7 +888,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "dbb6e1b2-08aa-45de-8b0c-4309d45fdacc",
+  "versionId": "11467a27-b399-4d93-b5e0-6f270d5effc1",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
