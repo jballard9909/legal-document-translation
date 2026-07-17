@@ -76,7 +76,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from anonymize_core_v1 import anonymize, SCORE_FLOOR
+from anonymize_core_v2 import anonymize, SCORE_FLOOR
 
 app = FastAPI(title="ABC Link -- Anonymization Service")
 
