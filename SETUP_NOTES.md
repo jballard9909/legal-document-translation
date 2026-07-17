@@ -33,7 +33,7 @@ including a case built specifically to reproduce the newline-adjacent shape
 v2 introduces — a placeholder immediately followed by a line break rather
 than a space, matching v2's real output byte-for-byte.
 
-**Model:** Gemini 2.5 Flash
+**Model:** Gemini 3.5 Flash
 
 **Result:** 100% survival (12/12 token checks), including both
 newline-adjacency cases.
