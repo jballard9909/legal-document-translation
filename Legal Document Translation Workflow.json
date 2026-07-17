@@ -1,0 +1,874 @@
+{
+  "name": "Legal Document Translation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        720
+      ],
+      "id": "4bffeea2-f794-46cc-b2b5-2172ad0b0a44",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/SYNTHETIC_Divorce_Decree.pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1248,
+        800
+      ],
+      "id": "03e20152-cc68-4c3d-ab60-e5110d2c4362",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8002/ocr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -880,
+        720
+      ],
+      "id": "491b676f-98c6-410f-905d-7d2138c8f2de",
+      "name": "OCR Scan"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8001/detect-pii",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "page_index",
+              "value": "={{ $json.page_index }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -528,
+        800
+      ],
+      "id": "d56ae833-4eeb-4a77-86b6-91b9dbf0f9da",
+      "name": "Detect PII",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "page_index",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -304,
+        720
+      ],
+      "id": "e4f34077-dc61-4f44-b055-49b0530dfebe",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8003/redact",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "={{ $('Read/Write Files from Disk').item.binary.data }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        624
+      ],
+      "id": "c0841033-3fcb-413b-bf8a-82bb809baca2",
+      "name": "Redact PII"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8004/anonymize",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        816
+      ],
+      "id": "f6d8490a-3ad6-4f64-a40e-6c3b1e1b0f74",
+      "name": "Anonymize PII"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Detect Direction — deterministic, API-less.\n// Turkish uses characters English never does. We count how many appear in the\n// page's anonymized text; any meaningful presence => the source is Turkish.\n// Emits `direction` as a field BOTH the translator and the glossary read.\n// This is real detection, not a stub — the demo is genuinely bidirectional.\n\nconst text = $json.anonymized_text || \"\";\n\n// Characters that occur in Turkish but not in standard English orthography.\nconst turkishChars = (text.match(/[ışğçöüİı]/g) || []).length;\n\n// A tiny threshold guards against a stray character (e.g. a name, a stray\n// diacritic in an English doc). A genuinely Turkish page clears this easily;\n// an English page sits at ~0.\nconst isTurkish = turkishChars >= 3;\n\nreturn {\n  json: {\n    ...$json,                       // carry the whole item through untouched\n    direction: isTurkish ? \"tr>en\" : \"en>tr\",\n    direction_debug: {             // visible in the run, aids demo narration\n      turkish_char_count: turkishChars,\n      decided: isTurkish ? \"tr>en\" : \"en>tr\",\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        1104
+      ],
+      "id": "a8a33494-b374-45b3-8788-98ffb96644bc",
+      "name": "Set Translation Direction"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "pages",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -704,
+        720
+      ],
+      "id": "7e59b8e8-faab-442a-a432-c108b2fb06e2",
+      "name": "Split Document Pages"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Wrap to JSON — structure the translation output for downstream stages.\n// The model (or stub) returned PLAIN TEXT; this node builds the structured\n// item around it. n8n owns the structuring, not the LLM — that's what keeps\n// placeholders safe (the model never had to emit JSON).\n//\n// Run mode: Run Once for Each Item (per-page, keeps page_index aligned).\n\n// ⬇️ THE ONE FIELD TO ADJUST after you see the real Gemini output.\n// Common candidates by n8n/Gemini node version: $json.text, $json.content,\n// $json.response, $json.message.content. Run the node once, look at where the\n// translated string actually lands, and set this to match.\nconst translatedText = $json.content.parts[0].text || \"\";\n\nreturn {\n  json: {\n    page_index: $('Set Translation Direction').item.json.page_index,        // keeps this page pairable downstream\n    direction: $('Set Translation Direction').item.json.direction,          // read by the eventual glossary + restore\n    translated_text: translatedText,     // the (still-tokenized) translation\n    restore_map: $('Set Translation Direction').item.json.restore_map,      // LOCAL — rides to restore, never to cloud\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        1104
+      ],
+      "id": "b318a3a5-e907-4531-8874-4840272c41d2",
+      "name": "Wrap in JSON"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._route }}",
+                    "rightValue": "append",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2406f8b6-7c97-49b2-b9db-64f1a84d52ff"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "28ffe46f-d1d2-44c1-a164-efbf9caaff33",
+                    "leftValue": "={{ $json._route }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "65423a54-06b8-484e-a603-bf69a00e9ee9",
+                    "leftValue": "={{ $json._route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1440,
+        1376
+      ],
+      "id": "32b588ca-a213-4e69-b89e-0ad2fd836728",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Gate decision helper (read-all version) — runs per candidate item.\n// Instead of relying on a per-term Sheets lookup (which drops non-matches),\n// we match against ALL glossary rows read upstream, so WE control the no-match\n// case and route it to append instead of letting the item vanish.\n\nconst candidate = $('Parse and Dedupe').item.json;   // the candidate flows straight through now\n\n// Pull every existing glossary row from the read-all node.\nconst allRows = $('Read Glossary').all().map(i => i.json);   // ← your read-all node's name\n\n// Find a row matching this candidate on (source_term, direction).\nconst match = allRows.find(r =>\n  r.source_term === candidate.source_term &&\n  r.direction === candidate.direction\n);\n\nlet route;\nif (!match) {\n  route = \"append\";\n} else if (String(match.verified).toUpperCase() === \"TRUE\") {\n  route = \"skip\";\n} else {\n  route = \"update\";\n}\n\nreturn {\n  json: {\n    ...candidate,\n    _route: route,\n    _matched_row: match || null,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        1104
+      ],
+      "id": "3ebdd369-fa8d-4aba-8456-ba0f446eb3bb",
+      "name": "Switch Logic"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk",
+          "mode": "list",
+          "cachedResultName": "Legal Term Glossary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_term": "={{ $('Parse and Dedupe').item.json.source_term }}",
+            "target_term": "={{ $('Parse and Dedupe').item.json.target_term }}",
+            "direction": "={{ $('Parse and Dedupe').item.json.direction }}",
+            "confidence": "={{ $('Parse and Dedupe').item.json.confidence }}",
+            "verified": "={{ $('Parse and Dedupe').item.json.verified }}",
+            "source_doc": "={{ $('Parse and Dedupe').item.json.source_doc }}",
+            "review_note": "={{ $('Parse and Dedupe').item.json.review_note }}"
+          },
+          "matchingColumns": [
+            "source_term"
+          ],
+          "schema": [
+            {
+              "id": "source_term",
+              "displayName": "source_term",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "target_term",
+              "displayName": "target_term",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "verified",
+              "displayName": "verified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_doc",
+              "displayName": "source_doc",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review_note",
+              "displayName": "review_note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1232,
+        1520
+      ],
+      "id": "b1de21ef-ffd1-4076-a909-875087d9c923",
+      "name": "Update Term",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lQAg9A5HTyPVMBR4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk",
+          "mode": "list",
+          "cachedResultName": "Legal Term Glossary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_term": "={{ $('Parse and Dedupe').item.json.source_term }}",
+            "target_term": "={{ $('Parse and Dedupe').item.json.target_term }}",
+            "direction": "={{ $('Parse and Dedupe').item.json.direction }}",
+            "confidence": "={{ $('Parse and Dedupe').item.json.confidence }}",
+            "verified": "={{ $('Parse and Dedupe').item.json.verified }}",
+            "source_doc": "={{ $('Parse and Dedupe').item.json.source_doc }}",
+            "review_note": "={{ $('Parse and Dedupe').item.json.review_note }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "source_term",
+              "displayName": "source_term",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_term",
+              "displayName": "target_term",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "verified",
+              "displayName": "verified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_doc",
+              "displayName": "source_doc",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review_note",
+              "displayName": "review_note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1232,
+        1344
+      ],
+      "id": "6a34bbd5-d29e-4d2e-aaed-5fc9b0a3b472",
+      "name": "Append New Term",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lQAg9A5HTyPVMBR4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk",
+          "mode": "list",
+          "cachedResultName": "Legal Term Glossary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lt8SFWhPMS4uIy41icdjDCnTiqNi-m1yO2eomcJ13Dk/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1248,
+        624
+      ],
+      "id": "6c93556c-e1ec-49fe-84ef-89328da359cd",
+      "name": "Read Glossary",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lQAg9A5HTyPVMBR4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a legal terminology extractor building a bilingual glossary. Below are two aligned versions of one page of a legal document: the SOURCE text and its TRANSLATION.\nSource ({{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }}):\n{{ $('Anonymize PII').item.json.anonymized_text }}\nTranslation ({{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}):\n{{ $json.translated_text }}\nExtract legal terms of art and their translations as aligned pairs. Rules:\n\nExtract ONLY specialized legal terminology — words and short phrases with specific legal meaning (e.g. \"Petitioner,\" \"Marital Settlement Agreement,\" \"joint legal custody,\" \"spousal maintenance\").\nExtract 5 to 15 term pairs. Prefer quality over quantity.\nDo NOT extract: whole sentences, clauses, common words, or generic phrases.\nDo NOT extract any bracketed placeholder token (like [PERSON_1], [DATE_TIME_2]). These are not terms. Skip them entirely.\nNEVER extract personally identifiable information. Do not extract names of people, addresses, street names, cities, dates, case numbers, account numbers, phone numbers, SSNs, or any identifier. Extract only generic legal vocabulary, never anything identifying a specific person, place, or matter. If a candidate term contains a name or identifier, skip it.\nEach term should be its base form, as it would appear in a dictionary or glossary.\n\nOutput ONLY a valid JSON array, nothing else. Each element:\n{\"source_term\": \"...\", \"target_term\": \"...\", \"confidence\": 0.0}\nconfidence is your certainty (0.0–1.0) that the pair is a correct, useful legal term translation. Output an empty array [] if no valid terms are found. No preamble, no markdown, no code fences — just the raw JSON array."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        1104
+      ],
+      "id": "5fb25ec9-a1b0-47da-a197-f8210a40c267",
+      "name": "Extract Terms for Glossary",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pw6sdpnq1oap3Dil",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\nRules:\n\nTranslate everything. Do not summarize, explain, comment, add headers, or omit anything.\nPreserve exactly, without translating: case numbers, monetary figures, and any legal citation or statute reference.\nUse formal legal register appropriate to the target language.\nMark any genuinely illegible passage as [ILLEGIBLE].\n\nPlaceholder tokens:\n\nThe text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\nReproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\nYou may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nText to translate:\n{{ $json.anonymized_text }}\nOutput only the translated text. No preamble, no notes, no quotation marks, no JSON."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -1216,
+        1104
+      ],
+      "id": "bd3df042-ccc1-4cf7-988e-e9c059b7a297",
+      "name": "Translate Anonymized Text",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pw6sdpnq1oap3Dil",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse + Dedupe — Run Once for All Items.\n// Consumes all 5 pages' raw Gemini extractor outputs. For each: strip code\n// fences, JSON.parse the array. Flatten all pages into one term list. Then\n// dedupe by (source_term, direction): collapse agreeing duplicates, and for\n// conflicting translations, keep the highest-confidence as target_term while\n// recording ALL competing translations in review_note for the human.\n\nconst items = $input.all();\nconst sourceDoc = \"SYNTHETIC_Divorce_Decree\";\n\n// --- 1. Parse every page's array, flatten into one list of raw pairs ---\nconst allPairs = [];\nfor (const item of items) {\n  const raw = item.json?.content?.parts?.[0]?.text || \"[]\";\n  // Strip ```json ... ``` or ``` ... ``` fences if Gemini wrapped the output.\n  const cleaned = raw.replace(/```json\\s*/gi, \"\").replace(/```/g, \"\").trim();\n\n  let parsed;\n  try {\n    parsed = JSON.parse(cleaned);\n    if (!Array.isArray(parsed)) parsed = [];\n  } catch (e) {\n    parsed = [];   // malformed page -> contribute nothing, don't crash the run\n  }\n\n  // Direction: read from the item if the extractor carried it, else default.\n  // (The extractor's response item may not carry direction; fall back to en>tr\n  //  for this English-source demo. Adjust if you thread direction through.)\n  const direction = item.json?.direction || \"en>tr\";\n\n  for (const p of parsed) {\n    if (!p || !p.source_term || !p.target_term) continue;   // skip junk\n    allPairs.push({\n      source_term: String(p.source_term).trim(),\n      target_term: String(p.target_term).trim(),\n      direction,\n      confidence: typeof p.confidence === \"number\" ? p.confidence : null,\n    });\n  }\n}\n\n// --- 2. Group by (source_term, direction) ---\n// Key is case-sensitive on source_term intentionally: \"Order\" vs \"order\" could\n// be different usages; the human can merge if needed. Direction is part of key\n// because a term is a distinct entry per translation direction.\nconst groups = new Map();\nfor (const pair of allPairs) {\n  const key = `${pair.source_term.toLowerCase()}||${pair.direction}`;\n  if (!groups.has(key)) groups.set(key, []);\n  groups.get(key).push(pair);\n}\n\n// --- 3. Collapse each group to ONE row, flag conflicts ---\nconst deduped = [];\nfor (const [key, pairs] of groups) {\n\n  // Highest-confidence pair (kept — drives confidence + fallback display).\n  const best = pairs.reduce((a, b) =>\n    ((b.confidence ?? -1) > (a.confidence ?? -1) ? b : a)\n  );\n\n  // Non-all-caps display form for source_term (kept — heading vs body casing).\n  const displayForm = pairs.find(p => p.source_term !== p.source_term.toUpperCase())\n    || best;\n\n  // --- Collapse target translations that differ ONLY by case ---\n  // \"Davacı\" and \"davacı\" are the same translation, capitalized differently by\n  // sentence position. Group targets by Turkish-lowercased form; only genuinely\n  // different translations (different letters, not just case) remain distinct.\n  const targetGroups = new Map();\n  for (const p of pairs) {\n    const norm = p.target_term.toLocaleLowerCase(\"tr\");\n    if (!targetGroups.has(norm)) {\n      targetGroups.set(norm, p.target_term);   // keep first-seen casing for display\n    }\n  }\n  const distinctTargets = [...targetGroups.values()];\n\n  // Choose display target: prefer a capitalized form over all-lowercase.\n  let chosenTarget = best.target_term;\n  const capitalizedVariant = distinctTargets.find(\n    t => t[0] === t[0].toLocaleUpperCase(\"tr\") && t[0] !== t[0].toLocaleLowerCase(\"tr\")\n  );\n  if (capitalizedVariant &&\n      best.target_term === best.target_term.toLocaleLowerCase(\"tr\")) {\n    chosenTarget = capitalizedVariant;\n  }\n\n  let reviewNote = \"\";\n  if (distinctTargets.length > 1) {\n    reviewNote = \"CONFLICT — competing translations: \" +\n      distinctTargets.map(t => `\"${t}\"`).join(\" | \");\n  }\n\n  deduped.push({\n    json: {\n      source_term: displayForm.source_term,\n      target_term: chosenTarget,          // ← case-collapsed pick (was best.target_term)\n      direction: best.direction,\n      confidence: best.confidence,\n      verified: \"FALSE\",\n      source_doc: sourceDoc,\n      review_note: reviewNote,\n    },\n  });\n}\n\nreturn deduped;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        1104
+      ],
+      "id": "2e3a94e4-c1a5-4e48-af51-210cd98acf9d",
+      "name": "Parse and Dedupe"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1056,
+        720
+      ],
+      "id": "3c323b4f-6a0d-43ac-84df-2d110c3af01b",
+      "name": "Merge1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Glossary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OCR Scan": {
+      "main": [
+        [
+          {
+            "node": "Split Document Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect PII": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Redact PII",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Anonymize PII",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anonymize PII": {
+      "main": [
+        [
+          {
+            "node": "Set Translation Direction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Translation Direction": {
+      "main": [
+        [
+          {
+            "node": "Translate Anonymized Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Document Pages": {
+      "main": [
+        [
+          {
+            "node": "Detect PII",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap in JSON": {
+      "main": [
+        [
+          {
+            "node": "Extract Terms for Glossary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Logic": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Append New Term",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Term",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Glossary": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Terms for Glossary": {
+      "main": [
+        [
+          {
+            "node": "Parse and Dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Translate Anonymized Text": {
+      "main": [
+        [
+          {
+            "node": "Wrap in JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Dedupe": {
+      "main": [
+        [
+          {
+            "node": "Switch Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "OCR Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "dbb6e1b2-08aa-45de-8b0c-4309d45fdacc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
+  },
+  "nodeGroups": [],
+  "id": "XmspDWJWnSc6vEXZ",
+  "tags": []
+}
