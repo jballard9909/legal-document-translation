@@ -77,6 +77,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from anonymize_core_v2 import anonymize, SCORE_FLOOR
+from restore_core_v1 import restore
 
 app = FastAPI(title="ABC Link -- Anonymization Service")
 
@@ -104,6 +105,19 @@ class AnonymizeRequest(BaseModel):
 
     model_config = {"extra": "ignore"}  # tolerate any other merge-carried keys
 
+class RestoreRequest(BaseModel):
+    """
+    Per-page restore input. `translated_text` and `restore_map` have no defaults
+    -> FastAPI 422s if either is omitted (missing-is-an-error). page_index is a
+    pure pass-through, echoed for downstream pairing.
+    """
+    translated_text: str = Field(
+        ..., description="Translated Markdown containing [TYPE_N] placeholders.")
+    restore_map: Dict[str, str] = Field(
+        ..., description="{ placeholder -> real value } for THIS page.")
+    page_index: Optional[int] = Field(
+        None, description="Pass-through page identifier; echoed back.")
+
 
 @app.get("/health")
 def health():
@@ -130,5 +144,21 @@ def anonymize_endpoint(req: AnonymizeRequest):
         "restore_map": result["restore_map"],
         "substitutions": result["substitutions"],
         "warnings": result["warnings"],
+        "page_index": req.page_index,
+    }
+@app.post("/restore")
+def restore_endpoint(req: RestoreRequest):
+    """
+    Put real PII values back into translated text (local, post-cloud) and report
+    integrity: any placeholders that never came back (missing) and any stray
+    tokens left behind (unresolved). Flags and succeeds -- never errors on a bad
+    token, so the pipeline continues and human review acts on the flags.
+    """
+    result = restore(req.translated_text, req.restore_map)
+    return {
+        "restored_text": result["restored_text"],
+        "restored_count": result["restored_count"],
+        "missing_placeholders": result["missing_placeholders"],
+        "unresolved_tokens": result["unresolved_tokens"],
         "page_index": req.page_index,
     }
