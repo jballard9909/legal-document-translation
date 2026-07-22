@@ -723,7 +723,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate Pages — Run Once for All Items.\n// Collect all restored pages into one ordered item for document assembly.\n// Sort by page_index (never trust arrival order — fan-in can reorder).\n\nconst pages = $input.all()\n  .map(i => i.json)\n  .sort((a, b) => a.page_index - b.page_index);\n\n// Surface integrity flags across the whole document, so assembly (and the\n// reviewer) sees in one place whether any page had a dropped or stray token.\nconst pagesWithFlags = pages.filter(\n  p => (p.missing_placeholders?.length || p.unresolved_tokens?.length)\n);\n\nreturn [{\n  json: {\n    page_count: pages.length,\n    pages: pages.map(p => ({\n      page_index: p.page_index,\n      restored_text: p.restored_text,\n      missing_placeholders: p.missing_placeholders ?? [],\n      unresolved_tokens: p.unresolved_tokens ?? [],\n    })),\n    has_integrity_flags: pagesWithFlags.length > 0,\n    flagged_pages: pagesWithFlags.map(p => p.page_index),\n  },\n}];"
+        "jsCode": "// Aggregate Pages — Run Once for All Items.\n// Collect all restored pages into one ordered item for document assembly.\n// Sort by page_index (never trust arrival order — fan-in can reorder).\n\nconst pages = $input.all()\n  .map(i => i.json)\n  .sort((a, b) => a.page_index - b.page_index);\n\n// Recover direction per page (dropped by /restore's response shape) and derive\n// one document-level direction. All pages of a single source document should\n// agree; if they don't, that's a real signal something misfired upstream\n// (e.g. the Turkish-char-count heuristic tripped on one page) -- flag it\n// rather than silently picking one and hiding the disagreement.\nconst directions = pages.map(p => {\n  const match = $('Set Translation Direction').all()\n    .find(i => i.json.page_index === p.page_index);\n  return match?.json?.direction ?? null;\n});\nconst uniqueDirections = [...new Set(directions.filter(Boolean))];\nconst direction = uniqueDirections[0] ?? null;\nconst direction_consistent = uniqueDirections.length <= 1;\n\n// Surface integrity flags across the whole document, so assembly (and the\n// reviewer) sees in one place whether any page had a dropped or stray token.\nconst pagesWithFlags = pages.filter(\n  p => (p.missing_placeholders?.length || p.unresolved_tokens?.length)\n);\n\nreturn [{\n  json: {\n    page_count: pages.length,\n    pages: pages.map(p => ({\n      page_index: p.page_index,\n      restored_text: p.restored_text,\n      missing_placeholders: p.missing_placeholders ?? [],\n      unresolved_tokens: p.unresolved_tokens ?? [],\n    })),\n    has_integrity_flags: pagesWithFlags.length > 0,\n    flagged_pages: pagesWithFlags.map(p => p.page_index),\n    direction: direction,\n    direction_consistent: direction_consistent\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -733,6 +733,131 @@
       ],
       "id": "2947aaf4-da46-4fed-b154-4bd9ccac0c2d",
       "name": "Aggregate Pages"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8005/render-body",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "Rendered Doc"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        1056
+      ],
+      "id": "1fc27ecc-f278-4184-ac6f-509515f76fe3",
+      "name": "Render Body"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "Rendered Doc",
+        "name": "={{ 'draft_' + $now.format('yyyyMMdd_HHmmss') + '.docx' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1XzfTp8CF3cpICqY64kauyCZZQcqHwmo-",
+          "mode": "list",
+          "cachedResultName": "Translation Drafts",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1XzfTp8CF3cpICqY64kauyCZZQcqHwmo-"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        208,
+        1056
+      ],
+      "id": "43e07b5a-b1e2-4357-9e34-2e1a98a636e7",
+      "name": "Upload Draft",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "NB2PcUxXE677z8AX",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "share",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "permissionsUi": {
+          "permissionsValues": {
+            "role": "writer",
+            "type": "user",
+            "emailAddress": "J.n.b001@gmail.com"
+          }
+        },
+        "options": {
+          "emailMessage": "A translated document draft needs your approval. Please follow the link to review and then confirm your approval of the document's status."
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -208,
+        1296
+      ],
+      "id": "e1854971-5daf-464f-851e-27cc6653922c",
+      "name": "Share file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "NB2PcUxXE677z8AX",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Approve Document",
+        "formDescription": "Open the document sent to you in Word, make adjustments as needed, then re-upload the approved document for finalization.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload your reviewed document (.docx)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".docx",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Review date",
+              "placeholder": "MM/DD/YYYY",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1296
+      ],
+      "id": "2cf74e4d-9f69-4055-a2fc-cbcf4cad6333",
+      "name": "HITL - Document Review",
+      "webhookId": "ce595986-6e1c-41f1-af47-09e320c2c9ee"
     }
   ],
   "pinData": {},
@@ -966,6 +1091,50 @@
           }
         ]
       ]
+    },
+    "Aggregate Pages": {
+      "main": [
+        [
+          {
+            "node": "Render Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Body": {
+      "main": [
+        [
+          {
+            "node": "Upload Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Draft": {
+      "main": [
+        [
+          {
+            "node": "Share file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share file": {
+      "main": [
+        [
+          {
+            "node": "HITL - Document Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -974,7 +1143,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "9a7bc877-24df-45bb-8418-886cbadb1dcb",
+  "versionId": "a46a0b26-3276-4c0f-8685-0315072f360e",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
