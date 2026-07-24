@@ -808,7 +808,7 @@
           }
         },
         "options": {
-          "emailMessage": "A translated document draft needs your approval. Please follow the link to review and then confirm your approval of the document's status."
+          "emailMessage": "A translated document draft needs your approval. Please follow the link to review.\n\nAfter reviewing the document, confirm your approval of the document's status by filling out this form: "
         }
       },
       "type": "n8n-nodes-base.googleDrive",
@@ -858,6 +858,109 @@
       "id": "2cf74e4d-9f69-4055-a2fc-cbcf4cad6333",
       "name": "HITL - Document Review",
       "webhookId": "ce595986-6e1c-41f1-af47-09e320c2c9ee"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "1NoDRLcjg3x7Q5Lp-pZ-4Er2M-MklAoGHD2TPgRES21Y",
+          "mode": "list",
+          "cachedResultName": "affidavit_of_translation_template",
+          "cachedResultUrl": "https://docs.google.com/document/d/1NoDRLcjg3x7Q5Lp-pZ-4Er2M-MklAoGHD2TPgRES21Y/edit?usp=drivesdk"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        208,
+        1296
+      ],
+      "id": "9a0ee6a6-f126-4149-981b-944092463366",
+      "name": "Get Affidavit",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "NB2PcUxXE677z8AX",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8005/assemble",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "translated_docx",
+              "inputDataFieldName": "={{ $('HITL - Document Review').item.binary.Upload_your_reviewed_document___docx_ }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "affidavit_template",
+              "inputDataFieldName": "={{ $('Get Affidavit').item.binary.data }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "source_pdf",
+              "inputDataFieldName": "={{ $('Read/Write Files from Disk').item.binary.data }}"
+            },
+            {
+              "name": "direction",
+              "value": "={{ $('Aggregate Pages').item.json.direction }}"
+            },
+            {
+              "name": "date",
+              "value": "={{ $('HITL - Document Review').item.json['Review date'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -192,
+        1536
+      ],
+      "id": "2820460f-cbd8-4347-8d61-c379f224ba9b",
+      "name": "Assemble Package"
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Read/Write Files from Disk').item.json.fileName }} Translation Package",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1lnbrijN10qskiOHsM8u8ewAzy9QVsjdW",
+          "mode": "list",
+          "cachedResultName": "Client Delivery",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1lnbrijN10qskiOHsM8u8ewAzy9QVsjdW"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        0,
+        1536
+      ],
+      "id": "91c79f09-9742-4fef-837d-bce9d64a070e",
+      "name": "Upload Final Package to Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "NB2PcUxXE677z8AX",
+          "name": "Google Drive account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -1135,6 +1238,39 @@
           }
         ]
       ]
+    },
+    "HITL - Document Review": {
+      "main": [
+        [
+          {
+            "node": "Get Affidavit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Affidavit": {
+      "main": [
+        [
+          {
+            "node": "Assemble Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Package": {
+      "main": [
+        [
+          {
+            "node": "Upload Final Package to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -1143,7 +1279,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "a46a0b26-3276-4c0f-8685-0315072f360e",
+  "versionId": "a49a7b08-47f3-4f41-8563-5ed2e1245904",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
