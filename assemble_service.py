@@ -193,6 +193,25 @@ async def assemble_endpoint(
             # Unknown direction or incomplete translator profile -- surfaced
             # as a clear 422 rather than an opaque 500.
             raise HTTPException(status_code=422, detail=str(e))
+        except RuntimeError as e:
+            # Infrastructure gap (e.g. LibreOffice missing from PATH in this
+            # environment) -- a 500 is correct (it's not the caller's fault),
+            # but it must NOT be the bare, detail-free 500 FastAPI's default
+            # handler produces. Surfacing the message here is what makes this
+            # class of failure diagnosable from n8n's error panel directly,
+            # instead of requiring a trip to the uvicorn terminal.
+            raise HTTPException(
+                status_code=500,
+                detail=f"Assembly environment error: {e}")
+        except Exception as e:
+            # Catch-all: a corrupt/unreadable DOCX or PDF, a docxtpl template
+            # error, or anything else not anticipated above. Still a 500 (not
+            # the caller's fault), but WITH a message and the failing stage
+            # named, rather than silently swallowed. Fail loud, same posture
+            # as every other core in this project.
+            raise HTTPException(
+                status_code=500,
+                detail=f"Assembly failed unexpectedly ({type(e).__name__}): {e}")
 
         with open(final_path, "rb") as f:
             final_bytes = f.read()

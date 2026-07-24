@@ -209,9 +209,57 @@ def _render_table(doc, lines):
 # ---------------------------------------------------------------------------
 # block dispatch
 # ---------------------------------------------------------------------------
-def render_markdown_block(md, doc, is_first_page=False):
-    """Parse one page's Markdown and append its elements to doc."""
+def _is_pipe_row(line):
+    s = line.strip()
+    return s.startswith("|") and s.endswith("|") and len(s) > 1
+
+
+def _merge_table_continuation_blocks(blocks):
+    """Guard against a stray blank line INSIDE a Markdown table (between the
+    separator row and a data row, or between two data rows -- a known LLM
+    Markdown quirk) fragmenting one table into multiple blocks. If a block
+    ENDS with a table-row-shaped line and the next block STARTS with one,
+    they are almost certainly the same table split by a spurious blank line
+    -- merge them back into a single block before block-dispatch runs, so the
+    whole table renders as one Word table instead of "first row as a table,
+    remaining rows as plain paragraphs" (the exact symptom observed in
+    production).
+    """
+    merged = []
+    for block in blocks:
+        if merged:
+            prev_lines = [l for l in merged[-1].split("\n") if l.strip()]
+            cur_lines = [l for l in block.split("\n") if l.strip()]
+            if (prev_lines and cur_lines
+                    and _is_pipe_row(prev_lines[-1])
+                    and _is_pipe_row(cur_lines[0])):
+                merged[-1] = merged[-1].rstrip("\n") + "\n" + block.lstrip("\n")
+                continue
+        merged.append(block)
+    return merged
+
+
+def render_markdown_block(md, doc, is_first_page=False, page_break_before=False):
+    """Parse one page's Markdown and append its elements to doc.
+
+    page_break_before: if True, the break is attached to the FIRST element
+    this call renders (heading, paragraph, or table) rather than inserted as
+    a separate floating paragraph. Retained for callers that want a forced
+    break (e.g. testing); render_body itself no longer requests one between
+    source pages -- see render_body's docstring for why.
+    """
     blocks = re.split(r"\n\s*\n", md.strip())
+    blocks = _merge_table_continuation_blocks(blocks)
+    break_pending = page_break_before
+
+    def _consume_break():
+        """Return True exactly once per page: the caller applies the break
+        to whatever it just created, then this always returns False after."""
+        nonlocal break_pending
+        if break_pending:
+            break_pending = False
+            return True
+        return False
 
     # Caption zone: on the title page, the body blocks that precede the first
     # section/title heading are the case caption (court / parties / "v."). Center
@@ -234,35 +282,66 @@ def render_markdown_block(md, doc, is_first_page=False):
                       and i < first_h2_idx)
 
         if first.startswith(REVIEW_MARKER):
-            _add_review_flag(doc, first)
+            p = _add_review_flag(doc, first)
+            if _consume_break():
+                p.paragraph_format.page_break_before = True
             for line in lines[1:]:
                 if line.strip():
                     _add_body_paragraph(doc, line.strip())
         elif _looks_like_table(lines):
-            _render_table(doc, lines)
+            table = _render_table(doc, lines)
+            if _consume_break():
+                # Tables have no page_break_before of their own -- the break
+                # goes on the paragraph inside the table's first cell, which
+                # is always present (python-docx guarantees at least one
+                # paragraph per cell).
+                table_obj = doc.tables[-1]
+                table_obj.rows[0].cells[0].paragraphs[0]\
+                    .paragraph_format.page_break_before = True
         elif len(lines) == 1 and first.startswith("## "):
-            _add_heading(doc, first[3:].strip(), 2)
+            p = _add_heading(doc, first[3:].strip(), 2)
+            if _consume_break():
+                p.paragraph_format.page_break_before = True
         elif len(lines) == 1 and first.startswith("# "):
-            _add_heading(doc, first[2:].strip(), 1)
+            p = _add_heading(doc, first[2:].strip(), 1)
+            if _consume_break():
+                p.paragraph_format.page_break_before = True
         elif _FOOTER_RE.match(first):
             _render_footer(doc, lines)
         else:
             align = (WD_ALIGN_PARAGRAPH.CENTER if in_caption
                      else WD_ALIGN_PARAGRAPH.JUSTIFY)
+            first_para_of_block = True
             for line in lines:
                 if line.strip():
-                    _add_body_paragraph(doc, line.strip(), align=align)
+                    p = _add_body_paragraph(doc, line.strip(), align=align)
+                    if first_para_of_block and _consume_break():
+                        p.paragraph_format.page_break_before = True
+                    first_para_of_block = False
 
 
 def render_body(pages):
-    """Render all pages into a single mirror-body Document, in page order."""
+    """Render all pages into a single mirror-body Document, in page order.
+
+    DESIGN REVERSAL (from the original Stage 5a decision): earlier builds
+    forced a hard page break between every source page, for page-to-page
+    cross-reference (translation page N <-> source page N). In practice this
+    made translation quality on ANY one page a load-bearing input to layout
+    on EVERY later page: EN<->TR length mismatch (or a rendering hiccup, e.g.
+    a mis-parsed table taking more vertical room than it should) pushes
+    content past its natural page boundary, collides with the next forced
+    break, and stranded a section alone on a near-empty page -- confirmed in
+    production. Content now flows naturally; translation and source page
+    numbers may drift out of alignment as a result, which is the accepted
+    tradeoff. The "Sayfa N ..." caption already present in each page's own
+    text remains the visible marker of where one source page's content ends
+    and the next begins -- just inline, not as a hard break.
+    """
     doc = Document()
     _set_base_styles(doc)
     _set_page(doc)
     ordered = sorted(pages, key=lambda p: p.get("page_index", 0))
     for idx, page in enumerate(ordered):
-        if idx > 0:
-            doc.add_page_break()
         render_markdown_block(page.get("restored_text", ""), doc,
                               is_first_page=(idx == 0))
     return doc
