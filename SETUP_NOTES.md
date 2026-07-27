@@ -46,3 +46,25 @@ the shipped repo path for that reason; this note is the durable record of
 what it confirmed and why the check was needed.
 
 ---
+
+INTAKE — EMAIL ADDRESS SCOPE DECISION
+
+The client email address submitted through the intake form is deliberately
+excluded from the PII privacy chain. It is collected as plain form data and
+travels through the workflow in the clear to the delivery node.
+
+This is intentional, not an oversight. The email address is the delivery
+destination — anonymizing it would make the package undeliverable. It is the
+one field whose function requires it to remain in plaintext.
+
+Scope of collection is minimized accordingly: the form collects only the
+document and the delivery address. Client name was considered and deliberately
+dropped — nothing in the pipeline consumes it, so collecting it would have
+expanded PII surface with no functional justification.
+
+The document itself receives full privacy-chain treatment (local OCR → local
+PII detection → text anonymization + image redaction before any cloud call).
+The distinction is: document contents are protected by architecture; the
+delivery address is protected by minimization.
+
+---
