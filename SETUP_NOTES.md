@@ -11,8 +11,6 @@ explicitly rather than hiding gaps.
 
 ## Placeholder Format Validation (anonymize_core_v2.py)
 
-**Date:** July 2026
-
 Before switching the anonymization service from `anonymize_core_v1.py` to
 `anonymize_core_v2.py`, placeholder survival through translation was
 re-verified against the production translation model.
@@ -47,7 +45,7 @@ what it confirmed and why the check was needed.
 
 ---
 
-INTAKE — EMAIL ADDRESS SCOPE DECISION
+## INTAKE — EMAIL ADDRESS SCOPE DECISION
 
 The client email address submitted through the intake form is deliberately
 excluded from the PII privacy chain. It is collected as plain form data and
