@@ -2,17 +2,6 @@
   "name": "Legal Document Translation",
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        -1424,
-        720
-      ],
-      "id": "4bffeea2-f794-46cc-b2b5-2172ad0b0a44",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "fileSelector": "/home/node/.n8n-files/SYNTHETIC_Divorce_Decree.pdf",
         "options": {}
@@ -20,11 +9,12 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1.1,
       "position": [
-        -1248,
+        -1648,
         800
       ],
       "id": "03e20152-cc68-4c3d-ab60-e5110d2c4362",
-      "name": "Read/Write Files from Disk"
+      "name": "Read/Write Files from Disk",
+      "disabled": true
     },
     {
       "parameters": {
@@ -37,7 +27,7 @@
             {
               "parameterType": "formBinaryData",
               "name": "file",
-              "inputDataFieldName": "data"
+              "inputDataFieldName": "={{ $('Webhook').item.binary.data0 }}"
             }
           ]
         },
@@ -46,11 +36,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -880,
+        -1072,
         720
       ],
       "id": "491b676f-98c6-410f-905d-7d2138c8f2de",
-      "name": "OCR Scan"
+      "name": "OCR Scan",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -549,7 +540,7 @@
       "typeVersion": 4.7,
       "position": [
         -1248,
-        624
+        720
       ],
       "id": "6c93556c-e1ec-49fe-84ef-89328da359cd",
       "name": "Read Glossary",
@@ -650,11 +641,12 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        -1056,
-        720
+        -1648,
+        608
       ],
       "id": "3c323b4f-6a0d-43ac-84df-2d110c3af01b",
-      "name": "Merge1"
+      "name": "Merge1",
+      "disabled": true
     },
     {
       "parameters": {
@@ -961,35 +953,31 @@
           "name": "Google Drive account"
         }
       }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d70962efa69ac9f057b97bce7c6d0dc7",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1424,
+        720
+      ],
+      "id": "811bf087-21b6-41b4-aa45-7b65c535547d",
+      "name": "Webhook",
+      "webhookId": "760d0f7f-55ab-4286-b270-5d796724c366"
     }
   ],
   "pinData": {},
   "connections": {
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "Read/Write Files from Disk",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Read Glossary",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Read/Write Files from Disk": {
       "main": [
-        [
-          {
-            "node": "Merge1",
-            "type": "main",
-            "index": 1
-          }
-        ]
+        []
       ]
     },
     "OCR Scan": {
@@ -1117,7 +1105,7 @@
       "main": [
         [
           {
-            "node": "Merge1",
+            "node": "OCR Scan",
             "type": "main",
             "index": 0
           }
@@ -1153,13 +1141,7 @@
     },
     "Merge1": {
       "main": [
-        [
-          {
-            "node": "OCR Scan",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Build Structured Text": {
@@ -1271,15 +1253,31 @@
           }
         ]
       ]
+    },
+    "Upload Final Package to Drive": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Glossary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "a49a7b08-47f3-4f41-8563-5ed2e1245904",
+  "versionId": "ab62ca37-2c7f-4e2e-a19d-c9430ed1aae7",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
