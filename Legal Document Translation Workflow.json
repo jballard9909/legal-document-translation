@@ -41,7 +41,8 @@
       ],
       "id": "491b676f-98c6-410f-905d-7d2138c8f2de",
       "name": "OCR Scan",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -1277,7 +1278,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "ab62ca37-2c7f-4e2e-a19d-c9430ed1aae7",
+  "versionId": "77fdd00c-f06d-4417-9c1a-d698372777e4",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
