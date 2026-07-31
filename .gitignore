@@ -5,6 +5,10 @@
 /outputs/
 /uploads/
 
+# ...except documentation assets
+!docs/assets/*.png
+!docs/assets/*.pdf
+
 # env / noise
 __pycache__/
 *.pyc
