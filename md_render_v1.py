@@ -19,8 +19,7 @@ render_body(pages) takes the Aggregate node's page list, each item:
     { "page_index": int,
       "restored_text": "<translated Markdown, PII restored>",
       "missing_placeholders": [...], "unresolved_tokens": [...] }
-Pages are sorted by page_index; a page break separates each source page so a
-reviewer can cross-reference source page N against translation page N.
+Pages are sorted by page_index.
 
 GRAMMAR (only what Stage 2 actually emits)
 ------------------------------------------
