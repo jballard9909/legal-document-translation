@@ -159,14 +159,19 @@ five-page test document.
 
 ## Structural Fidelity
 
-The requirement that shaped this build: the output must be a structural mirror
-of the source, not its text in reading order. A translated decree that loses its
-headings, tables, and clause numbering is no longer usable as a legal instrument,
-regardless of how accurate the translation is.
+The output must be a structure-preserving copy of the source, not its text in reading order. 
+A translated decree that loses its headings, tables, and clause numbering is no 
+longer usable as a legal instrument, regardless of how accurate the translation is.
 
-<p align="center">
-  <img src="docs/assets/side-by-side.png" alt="Source page beside rendered translation" width="900">
-</p>
+| Source - English | Rendered translation - Turkish |
+|:---:|:---:|
+| <img src="docs/assets/Synthetic Doc p1 (EN).png" width="420"> | <img src="docs/assets/Synthetic Doc p1 (TR).png" width="420"> |
+<p align="center"><em>
+Heading hierarchy, section structure, and legal clause numbering are preserved exactly.
+The two-column case caption is flattened to reading order at the OCR stage, and
+the source page footer appears inline rather than at the page foot — a consequence 
+  of the natural-flow design described above. Both are improvements planned for Phase 2.
+</em></p>
 
 Translation output is Markdown with a deliberately narrow grammar — only what the
 translation stage is instructed to emit. `md_render_v1.py` maps it to Word:
