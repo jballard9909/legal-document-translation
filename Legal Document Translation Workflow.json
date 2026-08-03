@@ -909,9 +909,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-3.5-flash",
+          "value": "models/gemini-2.5-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-3.5-flash"
+          "cachedResultName": "models/gemini-2.5-flash"
         },
         "messages": {
           "values": [
@@ -931,6 +931,7 @@
       ],
       "id": "4ccb6965-1975-44c5-9d46-b92d18e3b07a",
       "name": "Translate Anonymized Text",
+      "retryOnFail": true,
       "credentials": {
         "googlePalmApi": {
           "id": "pw6sdpnq1oap3Dil",
@@ -1233,7 +1234,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "3ed11f2f-fd7a-4033-a5f4-ab47c291769a",
+  "versionId": "8c4c527f-3e1c-48cf-84d5-43a9e757fc63",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
