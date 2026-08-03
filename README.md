@@ -212,3 +212,153 @@ page's text remains the visible marker of where one source page ends and the nex
 rasterization module, and `/redact` asserts that image dimensions match those
 reported by `/ocr` before drawing any box. A mismatch raises (rather than placing)
 redaction boxes at wrong coordinates.
+
+## Human Review Gate
+
+Certification is a legal act. The translator signs a statement that the
+translation is complete and accurate, so the pipeline is built in a way that no
+document can reach a client without a human having approved it.
+
+**How the gate works.** After rendering, the draft DOCX is uploaded to a Drive
+folder and shared with the reviewer, who receives an email with a link. The
+workflow then stops at a Wait node configured to resume on form submission. It
+does not poll, time out, or proceed on a default. Execution is suspended until a
+human submits the form.
+
+**The reviewer edits in Word.** Legal translators already work in Word, with track 
+changes, comments, and their own terminology tooling. Asking them to review a legal 
+document inside a browser text field would trade their entire working environment for 
+a novelty. The reviewer downloads the draft, edits it however they normally would, 
+and re-uploads the approved `.docx` through the form. By submitting the form, the
+reviewer is also approving the translation of the document.
+
+**The affidavit is static and pre-signed.** It is fetched from Drive as a fixed
+template and filled with per-job values. The translator's signature is on the
+certificate of accuracy, which under 8 CFR 103.2(b)(3) is what a certified
+translation requires. No notary block is included: notarization is a separate,
+downstream requirement imposed by particular receiving bodies, not part of
+certification itself.
+
+## Verified Results
+
+Every claim below is backed by a committed artifact or by code in this
+repository. Where something is designed but not yet measured, it is listed under
+Phase 2 instead.
+
+**Glossary additions from AI cannot overwrite verified entries.** Rows marked verified
+are unreachable by the workflow's write branch, so reviewer-approved terminology
+cannot be silently replaced by a later automated addition.
+
+**Placeholder survival through translation — 12/12 (100%).**
+`diagnostics/placeholder_survival_test_v2.py`, output committed at
+`diagnostics/results/placeholder_survival_v2.txt`. Eight synthetic cases across
+both language directions, stressing Turkish inflectional suffixes, repeated
+tokens, placeholder-adjacent-to-placeholder, and entities whose spans cross a
+line break. Run against `gemini-3.5-flash`; the model name is recorded in the
+output file itself.
+
+**Placeholder format selection.**
+`diagnostics/placeholder_survival_test_v1.py` tested four candidate formats
+(`[PERSON_1]`, `⟦PERSON_1⟧`, `<<PERSON_1>>`, `XPIIX_PERSON_1`) under the same
+stresses before square brackets were adopted. The convention in the shipping
+anonymizer is the result of that test.
+
+**Raster parity is enforced in code.** `/ocr` and `/redact` import the same
+rasterization module, so both render PDF pages at identical DPI by construction.
+`/redact` additionally asserts that the image it receives matches the dimensions
+reported by `/ocr` before drawing any box, and raises rather than proceeding on
+mismatch. A coordinate-space drift cannot silently place redaction boxes over
+the wrong words.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Orchestration | n8n Self-Hosted v2.27.4 (Docker) |
+| Services | Python 3.11, FastAPI, Uvicorn |
+| OCR | Tesseract 5.5, pytesseract, pdf2image, poppler |
+| PII detection | Microsoft Presidio 2.2.363, spaCy 3.8.13 (`en_core_web_lg`) |
+| Translation | Gemini 3.5 Flash |
+| Imaging | OpenCV, Pillow, NumPy |
+| Documents | python-docx, docxtpl, pypdf, LibreOffice |
+| Storage & delivery | Google Drive, Google Sheets, Gmail |
+| Front end | Lovable |
+
+## Repository Structure
+
+```
+Legal Document Translation Workflow.json   n8n workflow export
+requirements.txt
+SETUP.md                                   installation and run instructions
+SETUP_NOTES.md                             design decisions and scoping log
+
+services/
+  ocr_service.py         ocr_extract.py          /ocr — 8002
+  pii_service.py         pii_detect.py           /detect-pii — 8001
+  redact_service.py      redact_core.py          /redact — 8003
+  anonymize_service.py   anonymize_core_v2.py    /anonymize, /restore — 8004
+                         restore_core_v1.py
+  assemble_service.py    assemble_core.py        /render-body, /assemble — 8005
+                         md_render_v1.py         Markdown → structure-preserving DOCX
+                         affidavit_fill_v1.py    affidavit template fill
+                         pdf_merge_v1.py         bookmarked PDF assembly
+  rasterize.py                                   shared PDF→pixels (/ocr + /redact)
+  scan_service.py        region_scan_v1.py       /scan-regions — see Phase 2
+
+tools/                   synthetic test document generation
+diagnostics/             diagnostic scripts and committed results
+docs/assets/             architecture diagram and screenshots
+```
+
+Every microservice follows the same pattern: a versioned pure core module with no
+web framework dependency, plus a thin FastAPI wrapper. Cores are never
+overwritten — `anonymize_core_v1.py` remains alongside v2, and the service's
+import line is the only thing that moves.
+
+`rasterize.py` is imported by both `/ocr` and `/redact`, so the two render PDF
+pages at identical DPI by construction rather than by convention.
+
+## Running It Yourself
+
+**Prerequisites:** WSL2 or Linux · Python 3.11 (conda) · Docker · Tesseract 5.5
+with `tesseract-ocr-tur` · poppler-utils · LibreOffice · a Gemini API key ·
+Google Drive, Sheets, and Gmail credentials.
+
+Full instructions, including service startup and workflow import, are in
+**[SETUP.md](SETUP.md)**.
+
+No test document is included in this repository — generate one with
+`python make_synthetic_doc_v2.py`.
+
+## Phase 2
+
+- **Redacted images into the review path.** `/redact` is built and verified;
+  wiring its output into a reviewer-facing document is the next step.
+- **Visual-element PII.** `/scan-regions` performs pre-OCR region detection to
+  catch PII in rotated stamps, seals, and handwriting that OCR cannot read.
+  Built, not yet in the active pipeline. This is also a completeness question
+  under 8 CFR 103.2(b)(3), which requires translation of everything on the page.
+- **Turkish NER.** Presidio currently runs English models against Turkish text —
+  over-detecting rather than under-detecting, which errs safe. Full Turkish NER
+  needs `tr_core_news_lg`, pinned to spaCy <3.5 against this project's 3.8.13.
+  Planned as an isolated microservice on its own spaCy version.
+- **Turkish-source end-to-end run.** Both directions are verified at the
+  translation stage; full-pipeline verification of a Turkish-source document
+  is outstanding.
+- **Table fragmentation.** Stray blank lines in model output can split a
+  Markdown table so only its first row renders as a Word table.
+- **Glossary into the translation prompt.** The glossary is read at the start of
+  each run and written at the end; feeding approved terms into the translation
+  prompt closes the loop.
+- **Turkish OCR accuracy.** Ubuntu's packaged `tesseract-ocr-tur` traineddata is
+  older than the 5.5 engine. Impact unmeasured.
+
+## Data Handling
+
+Every document, screenshot, and test result in this repository is synthetic. No 
+client-provided document has been used in development, and none will be committed. 
+Test PDFs are gitignored.
+
+## Author
+
+Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](www.linkedin.com/in/jacob-ballard-)
