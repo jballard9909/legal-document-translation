@@ -15,10 +15,10 @@ OCR, PII detection, redaction, anonymization, and document assembly.
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-5_microservices-009688?logo=fastapi&logoColor=white)
 ![Presidio](https://img.shields.io/badge/Presidio-PII_detection-0078D4)
-![Gemini](https://img.shields.io/badge/Gemini_3.5_Flash-translation-4285F4?logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-translation-4285F4?logo=google&logoColor=white)
 
 > Built for a legal services client under NDA. All examples, screenshots, and test
-> documents in this repository use synthetic data. No client identifiers appear anywhere.
+> documents in this repository use synthetic data.
 ## Demo
 
 <p align="center">
@@ -93,7 +93,7 @@ placeholders (`[PERSON_1]`, `[CASE_NUMBER_2]`), resolving overlapping spans by
 confidence score and trimming boundary artifacts. The mapping is retained locally.
 
 **5) Translation.** Language direction is detected from character frequency.
-Gemini 2.5 Flash receives placeholder-bearing text only.
+Gemini receives placeholder-bearing text only.
 
 **6) Restoration.** `/restore` reinserts the original PII values into the
 translated text at their mapped positions, locally.
@@ -278,7 +278,7 @@ the wrong words.
 | Services | Python 3.11, FastAPI, Uvicorn |
 | OCR | Tesseract 5.5, pytesseract, pdf2image, poppler |
 | PII detection | Microsoft Presidio 2.2.363, spaCy 3.8.13 (`en_core_web_lg`) |
-| Translation | Gemini 3.5 Flash |
+| Translation | Gemini 2.5 Flash |
 | Imaging | OpenCV, Pillow, NumPy |
 | Documents | python-docx, docxtpl, pypdf, LibreOffice |
 | Storage & delivery | Google Drive, Google Sheets, Gmail |
