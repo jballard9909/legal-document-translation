@@ -1,0 +1,18 @@
+
+============================================================
+PLACEHOLDER SURVIVAL — model: gemini-3.5-flash
+============================================================
+format     survived/total   rate    
+------------------------------------------------------------
+square     12/12            100.0%
+
+Failure detail (which stress broke each format):
+------------------------------------------------------------
+
+[square] — all survived
+
+============================================================
+NEWLINE-ADJACENCY CASES (new in v2) — pass/fail at a glance
+============================================================
+  [PASS] square / tr_en_newline
+  [PASS] square / en_tr_newline

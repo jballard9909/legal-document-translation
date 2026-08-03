@@ -221,7 +221,6 @@ def run():
                         {"case": case["id"], "stress": case["stress"],
                          "token": tok, "got": translated[:160]}
                     )
-            time.sleep(13)  # free tier ~5 req/min
 
     print("\n" + "=" * 60)
     print(f"PLACEHOLDER SURVIVAL — model: {MODEL_NAME}")
