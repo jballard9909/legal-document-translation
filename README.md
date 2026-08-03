@@ -15,10 +15,10 @@ OCR, PII detection, redaction, anonymization, and document assembly.
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-5_microservices-009688?logo=fastapi&logoColor=white)
 ![Presidio](https://img.shields.io/badge/Presidio-PII_detection-0078D4)
-![Gemini](https://img.shields.io/badge/Gemini_3.5_Flash-translation-4285F4?logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-translation-4285F4?logo=google&logoColor=white)
 
 > Built for a legal services client under NDA. All examples, screenshots, and test
-> documents in this repository use synthetic data. No client identifiers appear anywhere.
+> documents in this repository use synthetic data.
 ## Demo
 
 <p align="center">
@@ -60,7 +60,7 @@ This pipeline was built to solve both halves at once:
 ## How It Works
 
 <p align="center">
-  <img src="docs/assets/Architecture.jpg" alt="Pipeline architecture" width="900">
+  <img src="docs/assets/architecture.jpg" alt="Pipeline architecture" width="900">
 </p>
 
 A single n8n workflow orchestrates five local FastAPI microservices and a set of
@@ -93,7 +93,7 @@ placeholders (`[PERSON_1]`, `[CASE_NUMBER_2]`), resolving overlapping spans by
 confidence score and trimming boundary artifacts. The mapping is retained locally.
 
 **5) Translation.** Language direction is detected from character frequency.
-Gemini 2.5 Flash receives placeholder-bearing text only.
+Gemini receives placeholder-bearing text only.
 
 **6) Restoration.** `/restore` reinserts the original PII values into the
 translated text at their mapped positions, locally.
@@ -165,7 +165,7 @@ longer usable as a legal instrument, regardless of how accurate the translation 
 
 | Source - English | Rendered translation - Turkish |
 |:---:|:---:|
-| <img src="docs/assets/Synthetic Doc p1 (EN).png" width="420"> | <img src="docs/assets/Synthetic Doc p1 (TR).png" width="420"> |
+| <img src="docs/assets/source-en.png" width="420"> | <img src="docs/assets/translated-tr.png" width="420"> |
 <p align="center"><em>
 Heading hierarchy, section structure, and legal clause numbering are preserved exactly.
 The two-column case caption is flattened to reading order at the OCR stage, and
@@ -278,7 +278,7 @@ the wrong words.
 | Services | Python 3.11, FastAPI, Uvicorn |
 | OCR | Tesseract 5.5, pytesseract, pdf2image, poppler |
 | PII detection | Microsoft Presidio 2.2.363, spaCy 3.8.13 (`en_core_web_lg`) |
-| Translation | Gemini 3.5 Flash |
+| Translation | Gemini 2.5 Flash |
 | Imaging | OpenCV, Pillow, NumPy |
 | Documents | python-docx, docxtpl, pypdf, LibreOffice |
 | Storage & delivery | Google Drive, Google Sheets, Gmail |
@@ -361,4 +361,4 @@ Test PDFs are gitignored.
 
 ## Author
 
-Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](www.linkedin.com/in/jacob-ballard-)
+Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](https://www.linkedin.com/in/jacob-ballard-)
