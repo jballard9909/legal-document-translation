@@ -60,7 +60,7 @@ This pipeline was built to solve both halves at once:
 ## How It Works
 
 <p align="center">
-  <img src="docs/assets/Architecture.jpg" alt="Pipeline architecture" width="900">
+  <img src="docs/assets/architecture.jpg" alt="Pipeline architecture" width="900">
 </p>
 
 A single n8n workflow orchestrates five local FastAPI microservices and a set of
@@ -165,7 +165,7 @@ longer usable as a legal instrument, regardless of how accurate the translation 
 
 | Source - English | Rendered translation - Turkish |
 |:---:|:---:|
-| <img src="docs/assets/Synthetic Doc p1 (EN).png" width="420"> | <img src="docs/assets/Synthetic Doc p1 (TR).png" width="420"> |
+| <img src="docs/assets/source-en.png" width="420"> | <img src="docs/assets/translated-tr.png" width="420"> |
 <p align="center"><em>
 Heading hierarchy, section structure, and legal clause numbering are preserved exactly.
 The two-column case caption is flattened to reading order at the OCR stage, and
@@ -361,4 +361,4 @@ Test PDFs are gitignored.
 
 ## Author
 
-Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](www.linkedin.com/in/jacob-ballard-)
+Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](https://www.linkedin.com/in/jacob-ballard-/)
