@@ -33,7 +33,11 @@ recognizers will not load without it.
 
 ## Environment variables
 
-Create a `.env` file (gitignored): GEMINI_API_KEY="your_key_here"
+Create a `.env` file (gitignored): 
+
+```
+GEMINI_API_KEY=your_key_here
+```
 
 ## Running the services
 
