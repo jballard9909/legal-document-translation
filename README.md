@@ -361,4 +361,4 @@ Test PDFs are gitignored.
 
 ## Author
 
-Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](https://www.linkedin.com/in/jacob-ballard-/)
+Jacob Ballard — [GitHub](https://github.com/jballard9909) · [LinkedIn](https://www.linkedin.com/in/jacob-ballard-)
