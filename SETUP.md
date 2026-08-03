@@ -75,3 +75,22 @@ tesseract --list-langs      # should include 'tur'
 soffice --version
 python -c "import spacy; spacy.load('en_core_web_lg')"
 ```
+
+## Triggering a run
+
+The workflow is triggered by POSTing a document and a delivery address to its
+webhook. The path is set in the Webhook node; find yours in the node's URL field
+after import.
+
+```bash
+curl -X POST http://localhost:5678/webhook/<your-webhook-path> \
+  -F "data=@document.pdf" \
+  -F "email=reviewer@example.com"
+```
+
+The document arrives as binary field `data0`; `email` is the address the final
+package is sent to. Both are required — downstream nodes reference
+`$('Webhook').item.binary.data0` and `$('Webhook').item.json.body.email`.
+
+No test document is included in this repository. Generate one with
+`python make_synthetic_doc_v2.py`.
