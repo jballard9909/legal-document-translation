@@ -543,9 +543,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-2.5-flash",
+          "value": "models/gemini-3.5-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-2.5-flash"
+          "cachedResultName": "models/gemini-3.5-flash"
         },
         "messages": {
           "values": [
@@ -598,39 +598,6 @@
       ],
       "id": "7c764fb8-b0d7-4923-a2ce-e4b3a7f9d0aa",
       "name": "Build Structured Text"
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "models/gemini-2.5-flash",
-          "mode": "list",
-          "cachedResultName": "models/gemini-2.5-flash"
-        },
-        "messages": {
-          "values": [
-            {
-              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\n\nCONTENT RULES\n- Translate everything. Do not summarize, explain, comment, or omit anything. Do not add content that is not in the source.\n- Use formal legal register appropriate to the target language.\n- Preserve verbatim, without translating: case numbers, docket numbers, account numbers, monetary figures, alphanumeric identifiers, form codes (e.g. FL-190), and URLs.\n- For statutory and legal citations, preserve the numbers verbatim but translate the descriptive words around them. Example: \"Family Code, §§ 2330, 7636, 7637\" becomes \"Medeni Kanun 2330, 7636, 7637 maddeleri\". The section numbers never change; the label and the § symbol are rendered in the target language.\n- Mark any genuinely illegible passage as [ILLEGIBLE]. Keep this marker exactly, in English, regardless of direction.\n\nPLACEHOLDER TOKENS\n- The text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\n- Reproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\n- You may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nOUTPUT FORMAT — MARKDOWN\nProduce the translation as Markdown that mirrors the structure of the source.\n- Use # for the document's main title and ## for section headings.\n- Separate paragraphs with a blank line, exactly as they appear in the input.\n- Section and clause numbers (for example I., VIII., 1.1., 2.3.) are LITERAL TEXT. Reproduce them exactly as written. Do NOT convert them into Markdown numbered or ordered lists, and do NOT use Markdown list syntax (1., -, *) anywhere. A heading keeps its number inline, e.g. \"## I. FINDINGS OF FACT\".\n- Render selection marks textually: a checked box as (X), an unchecked box as ( ).\n- For a stamp or seal containing readable text, translate that text in place. For a purely graphical mark with no readable text, insert a bracketed note in the target language describing it, e.g. [İmza] / [signature], [mühür] / [seal].\n- Mirror page-number lines in the target language, e.g. \"Page 1 of 1\" becomes \"Sayfa 1/1\".\n\nTABLES — WITH AN UNCERTAINTY ESCAPE HATCH\nSome input arrives as tabular content whose row and column structure was damaged by OCR (missing delimiters, fused rows, glued words).\n- If you can confidently reconstruct the rows and columns, render a proper Markdown table: header row, separator row, one row per record.\n- If the structure is genuinely ambiguous and you cannot reconstruct it with confidence, DO NOT GUESS. Translate the content as plain text lines and prefix the whole block, on its own line, with this exact marker: [TABLE — STRUCTURE UNCERTAIN, REVIEW]. Keep this marker exactly, in English, regardless of direction.\n- Never invent a column assignment to make a table look clean. A wrong cell placement in a legal table is a substantive error; a flagged uncertain block is not.\n\nText to translate:\n{{ $json.structured_text }}\n\nOutput only the translated Markdown. No preamble, no notes, no code fences, no surrounding quotation marks."
-            }
-          ]
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.googleGemini",
-      "typeVersion": 1.2,
-      "position": [
-        -1424,
-        1056
-      ],
-      "id": "4ccb6965-1975-44c5-9d46-b92d18e3b07a",
-      "name": "Translate Anonymized Text_v2",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "pw6sdpnq1oap3Dil",
-          "name": "Google Gemini(PaLM) Api account"
-        }
-      }
     },
     {
       "parameters": {
@@ -937,6 +904,39 @@
           "name": "Gmail account"
         }
       }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\n\nCONTENT RULES\n- Translate everything. Do not summarize, explain, comment, or omit anything. Do not add content that is not in the source.\n- Use formal legal register appropriate to the target language.\n- Preserve verbatim, without translating: case numbers, docket numbers, account numbers, monetary figures, alphanumeric identifiers, form codes (e.g. FL-190), and URLs.\n- For statutory and legal citations, preserve the numbers verbatim but translate the descriptive words around them. Example: \"Family Code, §§ 2330, 7636, 7637\" becomes \"Medeni Kanun 2330, 7636, 7637 maddeleri\". The section numbers never change; the label and the § symbol are rendered in the target language.\n- Mark any genuinely illegible passage as [ILLEGIBLE]. Keep this marker exactly, in English, regardless of direction.\n\nPLACEHOLDER TOKENS\n- The text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\n- Reproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\n- You may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nOUTPUT FORMAT — MARKDOWN\nProduce the translation as Markdown that mirrors the structure of the source.\n- Use # for the document's main title and ## for section headings.\n- Separate paragraphs with a blank line, exactly as they appear in the input.\n- Section and clause numbers (for example I., VIII., 1.1., 2.3.) are LITERAL TEXT. Reproduce them exactly as written. Do NOT convert them into Markdown numbered or ordered lists, and do NOT use Markdown list syntax (1., -, *) anywhere. A heading keeps its number inline, e.g. \"## I. FINDINGS OF FACT\".\n- Render selection marks textually: a checked box as (X), an unchecked box as ( ).\n- For a stamp or seal containing readable text, translate that text in place. For a purely graphical mark with no readable text, insert a bracketed note in the target language describing it, e.g. [İmza] / [signature], [mühür] / [seal].\n- Mirror page-number lines in the target language, e.g. \"Page 1 of 1\" becomes \"Sayfa 1/1\".\n\nTABLES — WITH AN UNCERTAINTY ESCAPE HATCH\nSome input arrives as tabular content whose row and column structure was damaged by OCR (missing delimiters, fused rows, glued words).\n- If you can confidently reconstruct the rows and columns, render a proper Markdown table: header row, separator row, one row per record.\n- If the structure is genuinely ambiguous and you cannot reconstruct it with confidence, DO NOT GUESS. Translate the content as plain text lines and prefix the whole block, on its own line, with this exact marker: [TABLE — STRUCTURE UNCERTAIN, REVIEW]. Keep this marker exactly, in English, regardless of direction.\n- Never invent a column assignment to make a table look clean. A wrong cell placement in a legal table is a substantive error; a flagged uncertain block is not.\n\nText to translate:\n{{ $json.structured_text }}\n\nOutput only the translated Markdown. No preamble, no notes, no code fences, no surrounding quotation marks."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -1424,
+        1056
+      ],
+      "id": "4ccb6965-1975-44c5-9d46-b92d18e3b07a",
+      "name": "Translate Anonymized Text",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pw6sdpnq1oap3Dil",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -994,7 +994,7 @@
       "main": [
         [
           {
-            "node": "Translate Anonymized Text_v2",
+            "node": "Translate Anonymized Text",
             "type": "main",
             "index": 0
           }
@@ -1100,17 +1100,6 @@
         [
           {
             "node": "Set Translation Direction",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Translate Anonymized Text_v2": {
-      "main": [
-        [
-          {
-            "node": "Wrap in JSON",
             "type": "main",
             "index": 0
           }
@@ -1225,6 +1214,17 @@
           }
         ]
       ]
+    },
+    "Translate Anonymized Text": {
+      "main": [
+        [
+          {
+            "node": "Wrap in JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -1233,7 +1233,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "10d315bb-6f7b-4ddb-9f44-a38dd1cd6e71",
+  "versionId": "3ed11f2f-fd7a-4033-a5f4-ab47c291769a",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
