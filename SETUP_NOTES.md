@@ -71,6 +71,8 @@ delivery address is protected by minimization.
 
 The original handoff attributed rows like `Payment method ... Health insurance ... Uninsured medical/dental ...` running together on one line to OCR quality. Verified false: `/ocr`'s own `text` and `lines[]` output preserve all rows as separate lines (distinct `line_id` values, e.g. `10:4:1` / `10:4:2` / `10:4:3`). The fusion is introduced by Build Structured Text's paragraph-join rule — lines sharing a `block:par` prefix get joined with a space — meeting a table, where Tesseract grouped multiple table rows into one paragraph. Confirmed against all five pages; the same mechanism also fused the asset/liability table's first two rows.
 
+---
+
 ## Known model behavior: confident-wrong correction of OCR garble (two confirmed instances)
 
 - Diagnostic testing (`table_continuation_hint_test_v2.py`, 20 reps): 1-in-5 reps silently "corrected" `5596`/`4596` to `55%`/`45%` despite the prompt instructing verbatim preservation of OCR-damaged figures. Reps 1, 2, 4, 5 carried the garble through correctly; rep 3 fixed it.
@@ -86,17 +88,25 @@ Threshold (150px column-gap) derived from a sweep (60–420px) against this docu
 - The rule never got tested against a true two-different-tables-adjacent case in this document (the asset table sits mid-page, so the trailing-run walk never reached it). Band-count discrimination (2 vs. 3 columns) is inference, not a tested result.
 - Page 5's signature block is a genuine multi-line 2-band structure that did *not* false-positive only because the page opens with a non-grid-like heading, breaking the leading run before it started. Band-position tolerance (45px delta vs. 25px tolerance) would have been the actual discriminator had that heading not existed — untested.
 
+---
+
 ## md_render_v2: footer position after a spliced table (accepted tradeoff, not a defect)
 
 When a table is spliced across a page boundary, the source page's original footer caption (e.g. "Sayfa 2 —...") now renders after the *complete* merged table rather than after the table's original first row. This is a direct consequence of `render_body`'s pre-existing "no forced page breaks, content flows naturally" design decision — adding rows pushes later content further down, so the DOCX's physical page break lands differently, and source/translation page alignment was already an accepted drift. Confirmed via direct render inspection, not just reasoning.
+
+---
 
 ## Pre-existing asymmetry: footer rendering by direction
 
 `_FOOTER_RE` matches only `^Sayfa\s+\d+` (Turkish). In the `tr>en` direction, an English footer ("Page N —...") does not match, so it renders as a justified body paragraph instead of a centered caption. Pre-existing in v1; not touched by the v2 splice, which uses its own bilingual `_SPLICE_SKIP_RE` only to *locate* footers, not to style them.
 
+---
+
 ## Not a pipeline issue: Google Drive's own OCR on appended source pages
 
 When inspecting delivered PDFs via Drive's text extraction, the appended original-English source pages showed their own unrelated garble (e.g. "Rivergrove, FR 00000" → "Rivergrove, FRRespondent"). This is Google's OCR of the rasterized source images at read-time, entirely outside this pipeline — noting it so it isn't later mistaken for a regression when someone diffs text extractions.
+
+---
 
 ## Known issue: signature block instability
 
