@@ -80,6 +80,8 @@ The original handoff attributed rows like `Payment method ... Health insurance .
 
 Both are the same failure mode: the model resolving ambiguous/garbled source text with unwarranted confidence instead of flagging it.
 
+---
+
 ## Table-boundary geometry detection: derivation and documented limits
 
 Threshold (150px column-gap) derived from a sweep (60–420px) against this document's real `/ocr` coordinates — stable across 60–320px, confirmed via `diagnostics/results/table_boundary_geometry_test_v1_gap150.txt`. Explicitly scoped limits:
