@@ -1,0 +1,95 @@
+loaded 5 pages from /mnt/c/Users/uncha/OneDrive/Desktop/Legal Doc Translation/ocr_output.json.txt
+==========================================================================
+Q1  INTRA-LINE WORD GAP DISTRIBUTION (all pages, all lines)
+==========================================================================
+gaps measured: 1372   min=5  max=868
+  p50  =    14 px
+  p75  =    17 px
+  p90  =    22 px
+  p95  =    25 px
+  p98  =   106 px
+  p99  =   352 px
+
+largest 15 gaps, with the line they came from:
+    868 px  p4  00000 Attorney for Respondent
+    852 px  p1  Item Amount / Detail
+    840 px  p2  Payee Casey R. Millbrook
+    839 px  p2  Payor Jordan A. Millbrook
+    712 px  p2  Effective date July 1, 2025
+    665 px  p2  Payment method Income withholding order / State Disbursement U
+    649 px  p0  Casey R. Millbrook, Judge: The Honorable Reese N. Fairbourne
+    627 px  p0  Jordan A. Millbrook, Case No.: FD-2025-TEST-004471
+    567 px  p2  Asset / Liability Awarded To Notes
+    542 px  p4  Ashworth & Doyle, LLP Whitfield Family Law Group
+    534 px  p4  Pat T. Ashworth, Esquire Morgan L. Whitfield, Esquire
+    483 px  p2  Household furnishings Divided per Exhibit C inventorAgreed div
+    374 px  p2  Uninsured medical/dental expenses Shared 5596 Petitioner / 459
+    352 px  p2  2021 Hallwood Sedan (vehicle) Petitioner Free and clear
+    330 px  p2  2019 Brackenford SUV (vehicle) Respondent Free and clear
+
+NOTE: a clean separation shows as a visible jump between ordinary
+word spacing and column gaps. If the two ranges overlap, no single
+threshold is safe and the sweep below will show verdicts flipping.
+
+==========================================================================
+Q1/Q3  THRESHOLD SWEEP -- which boundaries fire, at each threshold
+==========================================================================
+A derived threshold is one where the verdict row is IDENTICAL across
+a wide range. Flipping verdicts = the threshold is doing the work,
+not the geometry.
+
+  gap    0->1    1->2    2->3    3->4
+--------------------------------------------------------------------------
+   60       -    FIRE       -       -
+   80       -    FIRE       -       -
+  100       -    FIRE       -       -
+  120       -    FIRE       -       -
+  140       -    FIRE       -       -
+  160       -    FIRE       -       -
+  180       -    FIRE       -       -
+  200       -    FIRE       -       -
+  220       -    FIRE       -       -
+  240       -    FIRE       -       -
+  260       -    FIRE       -       -
+  280       -    FIRE       -       -
+  300       -    FIRE       -       -
+  320       -    FIRE       -       -
+  340       -       -       -       -
+  360       -       -       -       -
+  380       -       -       -       -
+  400       -       -       -       -
+  420       -       -       -       -
+
+EXPECTED (this document): exactly one column fires -- the boundary
+holding the split child-support table. Any other column firing is a
+false positive and must be understood before wiring anything.
+
+==========================================================================
+Q2  PER-BOUNDARY DETAIL at gap threshold = 150 px
+==========================================================================
+
+--- page_index 0 -> 1  no continuation ---
+  trailing run: 0 line(s)  bands=None
+  leading  run: 0 line(s)  bands=None
+
+--- page_index 1 -> 2  CONTINUATION ---
+  trailing run: 2 line(s)  bands=[326, 1257]
+      [326, 1257]  Monthly base child support obligation $1,240.00
+      [326, 1255]  Item Amount / Detail
+  leading  run: 6 line(s)  bands=[326, 1256]
+      [326, 1256]  Payor Jordan A. Millbrook
+      [326, 1257]  Payee Casey R. Millbrook
+      [326, 1256]  Effective date July 1, 2025
+      [326, 1256]  Payment method Income withholding order / State Disburse
+      [326, 1256]  Health insurance coverage for Minor Children Maintained 
+      [326, 1258]  Uninsured medical/dental expenses Shared 5596 Petitioner
+  band deltas: [0, 1] px   (tolerance 25)
+  -> hint header would be sourced from: 'Item Amount / Detail'
+
+--- page_index 2 -> 3  no continuation ---
+  trailing run: 0 line(s)  bands=None
+  leading  run: 0 line(s)  bands=None
+
+--- page_index 3 -> 4  no continuation ---
+  trailing run: 0 line(s)  bands=None
+  leading  run: 0 line(s)  bands=None

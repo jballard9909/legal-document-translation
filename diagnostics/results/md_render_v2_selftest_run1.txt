@@ -1,0 +1,5 @@
+[splice] all logic assertions PASS
+[render] paragraphs=11 tables=2
+[render] amber-shaded paragraphs=2
+[render] self-test doc saved -> /home/jballard95/repo-from-github/services/md_render_v2_selftest.docx
+[render] SELF-TEST PASS

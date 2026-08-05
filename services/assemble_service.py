@@ -54,7 +54,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from assemble_core import assemble_package
-from md_render_v1 import render_body
+from md_render_v2 import render_body
 
 app = FastAPI(title="ABC Link -- Assembly Service")
 
