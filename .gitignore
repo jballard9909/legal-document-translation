@@ -8,7 +8,7 @@
 # ...except documentation assets
 !docs/assets/*.png
 !docs/assets/*.pdf
-!docs/assets/frames*.png
+!docs/assets/frames/*.png
 
 # env / noise
 __pycache__/
