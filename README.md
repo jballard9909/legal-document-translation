@@ -15,7 +15,7 @@ OCR, PII detection, redaction, anonymization, and document assembly.
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-5_microservices-009688?logo=fastapi&logoColor=white)
 ![Presidio](https://img.shields.io/badge/Presidio-PII_detection-0078D4)
-![Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-translation-4285F4?logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_3.5_Flash-translation-4285F4?logo=google&logoColor=white)
 
 > Built for a legal services client under NDA. All examples, screenshots, and test
 > documents in this repository use synthetic data. Implementation code was written
@@ -252,11 +252,10 @@ cannot be silently replaced by a later automated addition.
 
 **Placeholder survival through translation — 12/12 (100%).**
 `diagnostics/placeholder_survival_test_v2.py`, output committed at
-`diagnostics/results/placeholder_survival_v2.txt`. Eight synthetic cases across
+`diagnostics/results/placeholder_survival_v2_gemini-3.5-flash.txt`. Eight synthetic cases across
 both language directions, stressing Turkish inflectional suffixes, repeated
 tokens, placeholder-adjacent-to-placeholder, and entities whose spans cross a
-line break. Run against `gemini-2.5-flash`; the model name is recorded in the
-output file itself.
+line break.
 
 **Placeholder format selection.**
 `diagnostics/placeholder_survival_test_v1.py` tested four candidate formats
@@ -279,7 +278,7 @@ the wrong words.
 | Services | Python 3.11, FastAPI, Uvicorn |
 | OCR | Tesseract 5.5, pytesseract, pdf2image, poppler |
 | PII detection | Microsoft Presidio 2.2.363, spaCy 3.8.13 (`en_core_web_lg`) |
-| Translation | Gemini 2.5 Flash |
+| Translation | Gemini 3.5 Flash |
 | Imaging | OpenCV, Pillow, NumPy |
 | Documents | python-docx, docxtpl, pypdf, LibreOffice |
 | Storage & delivery | Google Drive, Google Sheets, Gmail |
