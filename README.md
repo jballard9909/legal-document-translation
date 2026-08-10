@@ -18,7 +18,8 @@ OCR, PII detection, redaction, anonymization, and document assembly.
 ![Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-translation-4285F4?logo=google&logoColor=white)
 
 > Built for a legal services client under NDA. All examples, screenshots, and test
-> documents in this repository use synthetic data.
+> documents in this repository use synthetic data. Implementation code was written
+> with AI assistance — see [How This Was Built](#how-this-was-built).
 ## Demo
 
 <p align="center">
@@ -254,7 +255,7 @@ cannot be silently replaced by a later automated addition.
 `diagnostics/results/placeholder_survival_v2.txt`. Eight synthetic cases across
 both language directions, stressing Turkish inflectional suffixes, repeated
 tokens, placeholder-adjacent-to-placeholder, and entities whose spans cross a
-line break. Run against `gemini-3.5-flash`; the model name is recorded in the
+line break. Run against `gemini-2.5-flash`; the model name is recorded in the
 output file itself.
 
 **Placeholder format selection.**
@@ -328,7 +329,7 @@ Full instructions, including service startup and workflow import, are in
 **[SETUP.md](SETUP.md)**.
 
 No test document is included in this repository — generate one with
-`python make_synthetic_doc_v2.py`.
+`tools/python make_synthetic_doc_v2.py`.
 
 ## Phase 2
 
@@ -358,6 +359,17 @@ No test document is included in this repository — generate one with
 Every document, screenshot, and test result in this repository is synthetic. No 
 client-provided document has been used in development, and none will be committed. 
 Test PDFs are gitignored.
+
+## How This Was Built
+
+Implementation code in this repository was written with AI assistance (Claude).
+The architecture, the scoping decisions, and the diagnostics behind every claim
+under Verified Results are mine, as is responsibility for any defect in the
+result. Where that judgment shows: anonymizing before any cloud call rather than
+relying on a provider agreement, scoping the privacy claim to the translation
+model rather than the whole pipeline, and reversing the forced page-break design
+after it stranded sections on near-empty pages. Reasoning is logged in
+[SETUP_NOTES.md](SETUP_NOTES.md); diagnostic output is committed under `diagnostics/`.
 
 ## Author
 
