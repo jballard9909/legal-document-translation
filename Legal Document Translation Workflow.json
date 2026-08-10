@@ -51,27 +51,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -704,
-        800
+        -496,
+        816
       ],
       "id": "d56ae833-4eeb-4a77-86b6-91b9dbf0f9da",
       "name": "Detect PII",
       "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "fieldsToMatchString": "page_index",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
-      "position": [
-        -480,
-        720
-      ],
-      "id": "e4f34077-dc61-4f44-b055-49b0530dfebe",
-      "name": "Merge"
     },
     {
       "parameters": {
@@ -97,7 +82,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -256,
+        -64,
         624
       ],
       "id": "c0841033-3fcb-413b-bf8a-82bb809baca2",
@@ -115,7 +100,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -256,
+        -64,
         816
       ],
       "id": "f6d8490a-3ad6-4f64-a40e-6c3b1e1b0f74",
@@ -129,8 +114,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        176,
-        816
+        -1408,
+        1056
       ],
       "id": "a8a33494-b374-45b3-8788-98ffb96644bc",
       "name": "Set Translation Direction"
@@ -143,7 +128,7 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        -880,
+        -688,
         720
       ],
       "id": "7e59b8e8-faab-442a-a432-c108b2fb06e2",
@@ -157,7 +142,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1088,
+        -880,
         1056
       ],
       "id": "b318a3a5-e907-4531-8874-4840272c41d2",
@@ -525,7 +510,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -1248,
+        -1392,
         720
       ],
       "id": "6c93556c-e1ec-49fe-84ef-89328da359cd",
@@ -588,12 +573,12 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Build Structured Text — reconstruct paragraph boundaries from OCR hierarchy.\n//\n// WHY THIS EXISTS\n// ---------------\n// /ocr's `text` field joins EVERY line with \"\\n\" — so a mid-sentence wrap and a\n// real paragraph break look identical downstream. The structure isn't lost, it's\n// just not serialized: each line carries a line_id of \"block:par:line\", and\n// Tesseract already knows which lines share a paragraph. This node reads that\n// hierarchy back out and emits `structured_text`, where intra-paragraph wraps\n// collapse to spaces and real block/paragraph boundaries become blank lines.\n//\n// WHAT IT DOES NOT DO\n// -------------------\n// It never mutates `text` or `anonymized_text`. `text` is the coordinate system\n// that /detect-pii spans and /ocr char_spans both index into — changing it would\n// break /redact's char_span -> pixel mapping. This node is purely ADDITIVE.\n//\n// THE INDEX-ZIP GUARANTEE\n// -----------------------\n// We pair anonymized_text.split(\"\\n\")[i] with lines[i]. That's valid because in\n// ocr_extract.extract(), `full_text` and `lines` are built from the SAME `order`\n// array in the same sequence, and words never contain \"\\n\". Anonymization\n// preserves that pairing — UNLESS a PII span crosses a line break and its\n// placeholder swallows the \"\\n\". Then every later line pairs with the wrong\n// line_id and we'd emit plausible-looking, silently-wrong paragraphs. Hence the\n// count guard below: verify the precondition, don't guess. Same instinct as\n// /redact's raster-parity tripwire.\n\nconst anonText = $json.anonymized_text || \"\";\nconst pageIndex = $json.page_index;\n\n// --- Recover `lines` from /ocr -------------------------------------------\n// The /anonymize HTTP node replaced the item, so `lines` is gone from $json.\n// Match on page_index rather than using $('Merge').item: that would rely on\n// pairedItem metadata surviving an HTTP node's item replacement. Matching by a\n// real document-structural fact is order-independent and provably correct —\n// the same reasoning behind the Merge node's By Matching Fields config.\nconst mergedItem = $('Merge').all().find(\n  (i) => i.json.page_index === pageIndex\n);\nconst ocrLines = mergedItem?.json?.lines ?? null;\n\n// --- Soft-fail helper -----------------------------------------------------\n// A structure failure must NEVER take down a run. On any precondition miss we\n// pass anonymized_text through verbatim: the page translates exactly as it does\n// today, flagged so the failure is visible rather than silent.\nfunction softFail(reason, anonCount, ocrCount) {\n  return {\n    json: {\n      ...$json,\n      structured_text: anonText,\n      structure_debug: {\n        ocr_line_count: ocrCount,\n        anon_line_count: anonCount,\n        paragraph_count: null,\n        structure_recovered: false,\n        reason,\n      },\n    },\n  };\n}\n\nconst anonLines = anonText.split(\"\\n\");\n\n// --- Preconditions --------------------------------------------------------\nif (!anonText) {\n  return softFail(\"empty anonymized_text\", anonLines.length, ocrLines?.length ?? null);\n}\nif (!mergedItem) {\n  return softFail(`no Merge item matching page_index ${pageIndex}`, anonLines.length, null);\n}\nif (!Array.isArray(ocrLines) || ocrLines.length === 0) {\n  return softFail(\"missing or empty lines[] from /ocr\", anonLines.length, ocrLines?.length ?? null);\n}\n// THE guard. A mismatch means the index-zip assumption is broken — most likely a\n// placeholder swallowed a newline (a known anonymizer boundary case, logged for\n// anonymize_core_v2). This detects it; it does not fix it.\nif (anonLines.length !== ocrLines.length) {\n  return softFail(\n    \"line count mismatch (anonymization may have swallowed a newline)\",\n    anonLines.length,\n    ocrLines.length\n  );\n}\n\n// --- Reconstruct paragraphs ----------------------------------------------\n// line_id is the full \"block:par:line\" triple. Drop the line component: lines\n// sharing a block:par prefix are the same paragraph, wrapped. A change of prefix\n// is a real boundary.\nconst paragraphs = [];\nlet current = [];\nlet prevPrefix = null;\n\nfor (let i = 0; i < anonLines.length; i++) {\n  const lineId = ocrLines[i]?.line_id;\n  if (typeof lineId !== \"string\") {\n    return softFail(`malformed line_id at index ${i}`, anonLines.length, ocrLines.length);\n  }\n  const prefix = lineId.split(\":\").slice(0, 2).join(\":\");   // \"block:par\"\n\n  if (prevPrefix !== null && prefix !== prevPrefix) {\n    paragraphs.push(current.join(\" \"));   // close the open paragraph\n    current = [];\n  }\n  current.push(anonLines[i]);\n  prevPrefix = prefix;\n}\nif (current.length) {\n  paragraphs.push(current.join(\" \"));     // flush the final paragraph\n}\n\n// Wraps collapse to spaces within a paragraph; paragraphs separate with a blank\n// line. This is the shape the translator prompt (Stage 2) will consume.\nconst structuredText = paragraphs.join(\"\\n\\n\");\n\nreturn {\n  json: {\n    ...$json,                     // carry the item through untouched\n    structured_text: structuredText,\n    structure_debug: {\n      ocr_line_count: ocrLines.length,\n      anon_line_count: anonLines.length,\n      paragraph_count: paragraphs.length,\n      structure_recovered: true,\n      reason: null,\n    },\n  },\n};"
+        "jsCode": "// Build Structured Text — reconstruct paragraph boundaries from OCR hierarchy.\n//\n// WHY THIS EXISTS\n// ---------------\n// /ocr's `text` field joins EVERY line with \"\\n\" — so a mid-sentence wrap and a\n// real paragraph break look identical downstream. The structure isn't lost, it's\n// just not serialized: each line carries a line_id of \"block:par:line\", and\n// Tesseract already knows which lines share a paragraph. This node reads that\n// hierarchy back out and emits `structured_text`, where intra-paragraph wraps\n// collapse to spaces and real block/paragraph boundaries become blank lines.\n//\n// WHAT IT DOES NOT DO\n// -------------------\n// It never mutates `text` or `anonymized_text`. `text` is the coordinate system\n// that /detect-pii spans and /ocr char_spans both index into — changing it would\n// break /redact's char_span -> pixel mapping. This node is purely ADDITIVE.\n//\n// THE INDEX-ZIP GUARANTEE\n// -----------------------\n// We pair anonymized_text.split(\"\\n\")[i] with lines[i]. That's valid because in\n// ocr_extract.extract(), `full_text` and `lines` are built from the SAME `order`\n// array in the same sequence, and words never contain \"\\n\". Anonymization\n// preserves that pairing — UNLESS a PII span crosses a line break and its\n// placeholder swallows the \"\\n\". Then every later line pairs with the wrong\n// line_id and we'd emit plausible-looking, silently-wrong paragraphs. Hence the\n// count guard below: verify the precondition, don't guess. Same instinct as\n// /redact's raster-parity tripwire.\n//\n// v2 DELTA -- CONTINUATION-HINT PASS-THROUGH\n// -------------------------------------------\n// The /anonymize HTTP node replaces the item, so every field the Detect Table\n// Continuation node attached upstream on the OCR-side item (continuation_hint,\n// table_continuation) is gone from $json by the time this node runs -- same\n// loss mechanism this file already works around for `lines`. mergedItem is\n// already the correct source (it's the OCR-side item, matched by page_index,\n// looked up for exactly this reason). This delta only READS two more fields\n// off it and carries them through every return path, including the soft-fail\n// ones -- structure-recovery failure and translation-continuation are\n// unrelated concerns, and a soft-fail here must not silently drop the hint.\n// No other line in this file changes.\n\nconst anonText = $json.anonymized_text || \"\";\nconst pageIndex = $json.page_index;\n\n// --- Recover `lines` from /ocr -------------------------------------------\n// The /anonymize HTTP node replaced the item, so `lines` is gone from $json.\n// Match on page_index rather than using $('Merge').item: that would rely on\n// pairedItem metadata surviving an HTTP node's item replacement. Matching by a\n// real document-structural fact is order-independent and provably correct —\n// the same reasoning behind the Merge node's By Matching Fields config.\nconst mergedItem = $('Merge').all().find(\n  (i) => i.json.page_index === pageIndex\n);\nconst ocrLines = mergedItem?.json?.lines ?? null;\n\n// v2: same mergedItem, two more fields. Defaults match what Detect Table\n// Continuation always sets (\"\" / {fires:false}), so a page it never touched\n// (or a run before that node existed) behaves exactly as before this change.\nconst continuationHint = mergedItem?.json?.continuation_hint ?? \"\";\nconst tableContinuation = mergedItem?.json?.table_continuation ?? { fires: false };\n\n// --- Soft-fail helper -----------------------------------------------------\n// A structure failure must NEVER take down a run. On any precondition miss we\n// pass anonymized_text through verbatim: the page translates exactly as it does\n// today, flagged so the failure is visible rather than silent.\nfunction softFail(reason, anonCount, ocrCount) {\n  return {\n    json: {\n      ...$json,\n      structured_text: anonText,\n      structure_debug: {\n        ocr_line_count: ocrCount,\n        anon_line_count: anonCount,\n        paragraph_count: null,\n        structure_recovered: false,\n        reason,\n      },\n      // v2: carried through even on soft-fail. See delta note above.\n      continuation_hint: continuationHint,\n      table_continuation: tableContinuation,\n    },\n  };\n}\n\nconst anonLines = anonText.split(\"\\n\");\n\n// --- Preconditions --------------------------------------------------------\nif (!anonText) {\n  return softFail(\"empty anonymized_text\", anonLines.length, ocrLines?.length ?? null);\n}\nif (!mergedItem) {\n  return softFail(`no Merge item matching page_index ${pageIndex}`, anonLines.length, null);\n}\nif (!Array.isArray(ocrLines) || ocrLines.length === 0) {\n  return softFail(\"missing or empty lines[] from /ocr\", anonLines.length, ocrLines?.length ?? null);\n}\n// THE guard. A mismatch means the index-zip assumption is broken — most likely a\n// placeholder swallowed a newline (a known anonymizer boundary case, logged for\n// anonymize_core_v2). This detects it; it does not fix it.\nif (anonLines.length !== ocrLines.length) {\n  return softFail(\n    \"line count mismatch (anonymization may have swallowed a newline)\",\n    anonLines.length,\n    ocrLines.length\n  );\n}\n\n// --- Reconstruct paragraphs ----------------------------------------------\n// line_id is the full \"block:par:line\" triple. Drop the line component: lines\n// sharing a block:par prefix are the same paragraph, wrapped. A change of prefix\n// is a real boundary.\nconst paragraphs = [];\nlet current = [];\nlet prevPrefix = null;\n\nfor (let i = 0; i < anonLines.length; i++) {\n  const lineId = ocrLines[i]?.line_id;\n  if (typeof lineId !== \"string\") {\n    return softFail(`malformed line_id at index ${i}`, anonLines.length, ocrLines.length);\n  }\n  const prefix = lineId.split(\":\").slice(0, 2).join(\":\");   // \"block:par\"\n\n  if (prevPrefix !== null && prefix !== prevPrefix) {\n    paragraphs.push(current.join(\" \"));   // close the open paragraph\n    current = [];\n  }\n  current.push(anonLines[i]);\n  prevPrefix = prefix;\n}\nif (current.length) {\n  paragraphs.push(current.join(\" \"));     // flush the final paragraph\n}\n\n// Wraps collapse to spaces within a paragraph; paragraphs separate with a blank\n// line. This is the shape the translator prompt (Stage 2) will consume.\nconst structuredText = paragraphs.join(\"\\n\\n\");\n\nreturn {\n  json: {\n    ...$json,                     // carry the item through untouched\n    structured_text: structuredText,\n    structure_debug: {\n      ocr_line_count: ocrLines.length,\n      anon_line_count: anonLines.length,\n      paragraph_count: paragraphs.length,\n      structure_recovered: true,\n      reason: null,\n    },\n    // v2: pass the continuation hint (built from real OCR geometry, upstream\n    // of /anonymize) through to the item the translate node actually reads.\n    // Empty string / {fires:false} on any page Detect Table Continuation did\n    // not flag -- see delta note above.\n    continuation_hint: continuationHint,\n    table_continuation: tableContinuation,\n  },\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -32,
+        160,
         816
       ],
       "id": "7c764fb8-b0d7-4923-a2ce-e4b3a7f9d0aa",
@@ -611,7 +596,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -832,
+        -672,
         1056
       ],
       "id": "73bf50f2-01c4-404f-92ff-62bb54b22bc6",
@@ -624,7 +609,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -624,
+        -496,
         1056
       ],
       "id": "2947aaf4-da46-4fed-b154-4bd9ccac0c2d",
@@ -649,7 +634,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -416,
+        -320,
         1056
       ],
       "id": "1fc27ecc-f278-4184-ac6f-509515f76fe3",
@@ -676,7 +661,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        -224,
+        -144,
         1056
       ],
       "id": "43e07b5a-b1e2-4357-9e34-2e1a98a636e7",
@@ -710,7 +695,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        -16,
+        16,
         1056
       ],
       "id": "e1854971-5daf-464f-851e-27cc6653922c",
@@ -869,7 +854,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -1424,
+        -1568,
         720
       ],
       "id": "811bf087-21b6-41b4-aa45-7b65c535547d",
@@ -909,14 +894,14 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-2.5-flash",
+          "value": "models/gemini-3.5-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-2.5-flash"
+          "cachedResultName": "models/gemini-3.5-flash"
         },
         "messages": {
           "values": [
             {
-              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\n\nCONTENT RULES\n- Translate everything. Do not summarize, explain, comment, or omit anything. Do not add content that is not in the source.\n- Use formal legal register appropriate to the target language.\n- Preserve verbatim, without translating: case numbers, docket numbers, account numbers, monetary figures, alphanumeric identifiers, form codes (e.g. FL-190), and URLs.\n- For statutory and legal citations, preserve the numbers verbatim but translate the descriptive words around them. Example: \"Family Code, §§ 2330, 7636, 7637\" becomes \"Medeni Kanun 2330, 7636, 7637 maddeleri\". The section numbers never change; the label and the § symbol are rendered in the target language.\n- Mark any genuinely illegible passage as [ILLEGIBLE]. Keep this marker exactly, in English, regardless of direction.\n\nPLACEHOLDER TOKENS\n- The text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\n- Reproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\n- You may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nOUTPUT FORMAT — MARKDOWN\nProduce the translation as Markdown that mirrors the structure of the source.\n- Use # for the document's main title and ## for section headings.\n- Separate paragraphs with a blank line, exactly as they appear in the input.\n- Section and clause numbers (for example I., VIII., 1.1., 2.3.) are LITERAL TEXT. Reproduce them exactly as written. Do NOT convert them into Markdown numbered or ordered lists, and do NOT use Markdown list syntax (1., -, *) anywhere. A heading keeps its number inline, e.g. \"## I. FINDINGS OF FACT\".\n- Render selection marks textually: a checked box as (X), an unchecked box as ( ).\n- For a stamp or seal containing readable text, translate that text in place. For a purely graphical mark with no readable text, insert a bracketed note in the target language describing it, e.g. [İmza] / [signature], [mühür] / [seal].\n- Mirror page-number lines in the target language, e.g. \"Page 1 of 1\" becomes \"Sayfa 1/1\".\n\nTABLES — WITH AN UNCERTAINTY ESCAPE HATCH\nSome input arrives as tabular content whose row and column structure was damaged by OCR (missing delimiters, fused rows, glued words).\n- If you can confidently reconstruct the rows and columns, render a proper Markdown table: header row, separator row, one row per record.\n- If the structure is genuinely ambiguous and you cannot reconstruct it with confidence, DO NOT GUESS. Translate the content as plain text lines and prefix the whole block, on its own line, with this exact marker: [TABLE — STRUCTURE UNCERTAIN, REVIEW]. Keep this marker exactly, in English, regardless of direction.\n- Never invent a column assignment to make a table look clean. A wrong cell placement in a legal table is a substantive error; a flagged uncertain block is not.\n\nText to translate:\n{{ $json.structured_text }}\n\nOutput only the translated Markdown. No preamble, no notes, no code fences, no surrounding quotation marks."
+              "content": "=You are a certified legal translator. Translate the document text below from {{ $json.direction === 'tr>en' ? 'Turkish' : 'English' }} into {{ $json.direction === 'tr>en' ? 'English' : 'Turkish' }}.\n\nCONTENT RULES\n- Translate everything. Do not summarize, explain, comment, or omit anything. Do not add content that is not in the source.\n- Use formal legal register appropriate to the target language.\n- Preserve verbatim, without translating: case numbers, docket numbers, account numbers, monetary figures, alphanumeric identifiers, form codes (e.g. FL-190), and URLs.\n- For statutory and legal citations, preserve the numbers verbatim but translate the descriptive words around them. Example: \"Family Code, §§ 2330, 7636, 7637\" becomes \"Medeni Kanun 2330, 7636, 7637 maddeleri\". The section numbers never change; the label and the § symbol are rendered in the target language.\n- Mark any genuinely illegible passage as [ILLEGIBLE]. Keep this marker exactly, in English, regardless of direction.\n\nPLACEHOLDER TOKENS\n- The text contains tokens in square brackets with an underscore and number, like [PERSON_1], [LOCATION_2], [DATE_TIME_3]. These are opaque identifiers standing in for redacted content.\n- Reproduce each token exactly — same brackets, same word, same number. Never translate, reformat, renumber, space, or alter them in any way.\n- You may reposition a token within its sentence so the surrounding translation reads naturally in the target language. The token's internal text must remain untouched.\n\nOUTPUT FORMAT — MARKDOWN\nProduce the translation as Markdown that mirrors the structure of the source.\n- Use # for the document's main title and ## for section headings.\n- Separate paragraphs with a blank line, exactly as they appear in the input.\n- Section and clause numbers (for example I., VIII., 1.1., 2.3.) are LITERAL TEXT. Reproduce them exactly as written. Do NOT convert them into Markdown numbered or ordered lists, and do NOT use Markdown list syntax (1., -, *) anywhere. A heading keeps its number inline, e.g. \"## I. FINDINGS OF FACT\".\n- Render selection marks textually: a checked box as (X), an unchecked box as ( ).\n- For a stamp or seal containing readable text, translate that text in place. For a purely graphical mark with no readable text, insert a bracketed note in the target language describing it, e.g. [İmza] / [signature], [mühür] / [seal].\n- Mirror page-number lines in the target language, e.g. \"Page 1 of 1\" becomes \"Sayfa 1/1\".\n\nTABLES — WITH AN UNCERTAINTY ESCAPE HATCH\nSome input arrives as tabular content whose row and column structure was damaged by OCR (missing delimiters, fused rows, glued words).\n- If you can confidently reconstruct the rows and columns, render a proper Markdown table: header row, separator row, one row per record.\n- If the structure is genuinely ambiguous and you cannot reconstruct it with confidence, DO NOT GUESS. Translate the content as plain text lines and prefix the whole block, on its own line, with this exact marker: [TABLE — STRUCTURE UNCERTAIN, REVIEW]. Keep this marker exactly, in English, regardless of direction.\n- Never invent a column assignment to make a table look clean. A wrong cell placement in a legal table is a substantive error; a flagged uncertain block is not.\n\nText to translate:\n{{ $json.continuation_hint || '' }}{{ $json.structured_text }}\n\nOutput only the translated Markdown. No preamble, no notes, no code fences, no surrounding quotation marks."
             }
           ]
         },
@@ -926,7 +911,7 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
       "position": [
-        -1424,
+        -1216,
         1056
       ],
       "id": "4ccb6965-1975-44c5-9d46-b92d18e3b07a",
@@ -938,6 +923,34 @@
           "name": "Google Gemini(PaLM) Api account"
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "page_index",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -304,
+        720
+      ],
+      "id": "fe626715-eab6-41e5-86d7-cc655016db30",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================================================================\n// Code node:  \"Detect Table Continuation\"\n// MODE: Run Once for All Items   <-- REQUIRED (returns an array; also needs to see every page at once to compare across the page boundary)\n// ================================================================\n// WHY THIS EXISTS\n// ---------------\n// A table straddling a source page boundary is translated as two disconnected fragments, because each page gets its own Gemini call and page N+1's call never sees the header from page N. It therefore returns prose, not table rows. This node detects that situation from OCR word geometry BEFORE the per-page fan-out, and attaches a ready-made continuation hint to the page that needs it. The translate prompt inserts that hint; md_render_v2 splices the resulting headerless rows back onto the open table at render time.\n// ================================================================\n// HOW DETECTION WORKS\n// -------------------\n// Within a line, words are split into COLUMN BANDS wherever the gap to the next word exceeds GAP px. A line with >= 2 bands is \"grid-like\". A page's TRAILING run is the consecutive grid-like lines ending at its last non-footer line; the next page's LEADING run is the same anchored at its first content line. A continuation is declared only when both runs exist, have >= MIN_RUN lines, have the same band COUNT, and every band position agrees within BAND_TOL.\n// ================================================================\n// CONSTANTS ARE DERIVED, NOT GUESSED\n// ----------------------------------\n// GAP = 150 comes from table_boundary_geometry_test_v1.py run against the real /ocr output for the synthetic decree:   \n//   - ordinary intra-word gaps: p95 = 25px;  column gaps: p99 = \n//     352px\n//   - the continuation verdict is IDENTICAL across a 60-320px \n//     sweep, so the geometry (not the threshold) is doing the work\n//   - 150 sits below the 199px gap in the \"Health insurance \n//     coverage\" row, so the detected run covers all 6 \n//     continuation rows rather than stopping at 4\n// Evidence: diagnostics/results/table_boundary_geometry_test_v1_gap150.txt\n// ================================================================\n// KNOWN LIMITS (documented, not hidden)\n// -------------------------------------\n//  - Matching geometry is strong evidence that two runs are the same table, not proof. The [TABLE - STRUCTURE UNCERTAIN, REVIEW] escape hatch remains the backstop.\n//  - Validated against ONE document's layout. A second document may shift the stable window; re-run the diagnostic before assuming these constants hold.\n//  - The 3-column asset table on page 3 sits mid-page, so it never exercised the boundary logic. Band COUNT would discriminate it (3 vs 2), but that is inference from coordinates, not a tested result.\n//  - Page 5's signature block is a genuine multi-line 2-band structure. It did not fire only because page 5 opens with a non-grid-like heading. Band POSITION would still discriminate it (x=1301 vs x=1256, 45px vs 25px tolerance) -- thin but sufficient, and untested.\n// ================================================================\n// CONSTRAINT CHECK (the six load-bearing invariants)\n// --------------------------------------------------\n//  1. placeholder namespace   - untouched (runs before /detect-pii)\n//  2. PII offset immutability - untouched (no text mutated)\n//  3. text as coordinate sys  - untouched (adds fields only)\n//  4. per-page image branch   - untouched (page count unchanged)\n//  5. line-count guard        - untouched (anonymized_text not involved)\n//  6. one-item-per-page       - untouched (Split Out still fans \n//                               out N pages)\n//\n// SYNTHETIC DATA ONLY.\n// ===================================================================\n\n// --- derived constants (see header) -----------------------------\nconst GAP = 150;            // px: split a line into columns at \n//                             gaps wider than this\nconst BAND_TOL = 25;        // px: tolerance when matching band \n//                             positions\nconst MIN_RUN = 2;          // min grid-like lines required on \n//                             each side\nconst FOOTER_Y_FRAC = 0.92; // lines below this fraction of page \n//                             height = footer\n\nconst FOOTER_RE = /^\\s*(Sayfa|Page)\\s+\\d+|^\\s*(FABRICATED DOCUMENT|YAZILIM TEST)/i;\n\n// The sentinel + directive below are reproduced VERBATIM from diagnostics/table_continuation_hint_test_v2.py, which returned 5/5 clean runs (6 rows, 2 columns, outer pipes present, no separator, no hint leak, OCR-fused rows correctly split) on the production en>tr direction.\n// DO NOT REWORD without re-running that diagnostic -- the validation evidence applies to this exact wording.\nconst SENTINEL = '\\u00abCONTINUATION-CONTEXT\\u00bb';\n\nfunction buildHint(headerCells) {\n  const cols = headerCells.map((c) => '\"' + c + '\"').join(' | ');\n  const directive =\n    'The lines that follow CONTINUE a ' + headerCells.length +\n    '-column table begun on the previous page, whose columns are ' + cols +\n    '. Render them as Markdown table rows, one row per record. EVERY row MUST ' +\n    'begin with a pipe, end with a pipe, and separate its cells with a pipe -- ' +\n    'exactly in this shape: | first cell | second cell |. A row that is not ' +\n    'wrapped in outer pipes is invalid; do not emit one. Do NOT emit a header ' +\n    'row and do NOT emit a separator row -- the header already appeared on the ' +\n    'previous page. Where several records were run together on one line by OCR, ' +\n    'split them into separate rows.';\n  return SENTINEL + '\\n' + directive +\n    '\\nThis context note is instructions only; do NOT translate it and do NOT ' +\n    'reproduce it in your output.\\n' + SENTINEL + '\\n\\n';\n}\n\n// --- geometry helpers -------------------------------------------\nfunction wordsOfLine(page, lineId) {\n  return (page.words || []).filter((w) => w.line_id === lineId);\n}\n\nfunction sortedByX(words) {\n  return words.slice().sort((a, b) => a.box[0] - b.box[0]);\n}\n\nfunction bandsOfLine(words) {\n  const ws = sortedByX(words);\n  if (!ws.length) return [];\n  const bands = [ws[0].box[0]];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    if (ws[i].box[0] - (prev.box[0] + prev.box[2]) > GAP) {\n      bands.push(ws[i].box[0]);\n    }\n  }\n  return bands;\n}\n\n// Split a line's words into per-column cell strings, using the same gap rule.\n// This is how the hint's column labels are recovered: \"Item Amount / Detail\" is a fused OCR line; geometry is the only thing that knows where the column boundary actually falls.\nfunction cellsOfLine(words) {\n  const ws = sortedByX(words);\n  const cells = [];\n  let cur = [];\n  for (let i = 0; i < ws.length; i++) {\n    if (i > 0) {\n      const prev = ws[i - 1];\n      if (ws[i].box[0] - (prev.box[0] + prev.box[2]) > GAP) {\n        cells.push(cur.join(' '));\n        cur = [];\n      }\n    }\n    cur.push(ws[i].text);\n  }\n  if (cur.length) cells.push(cur.join(' '));\n  return cells;\n}\n\nfunction bandsMatch(a, b) {\n  if (!a || !b || a.length !== b.length) return false;\n  for (let i = 0; i < a.length; i++) {\n    if (Math.abs(a[i] - b[i]) > BAND_TOL) return false;\n  }\n  return true;\n}\n\nfunction isFooter(line, pageHeight) {\n  if (pageHeight && line.box[1] > FOOTER_Y_FRAC * pageHeight) return true;\n  return FOOTER_RE.test(line.text || '');\n}\n\nfunction contentLines(page) {\n  const h = (page.image_dimensions || {}).height || 0;\n  return (page.lines || []).filter((ln) => !isFooter(ln, h));\n}\n\n// Collect a maximal run of consecutive grid-like lines with stable bands, walking in the order given.\nfunction collectRun(page, lines) {\n  const run = [];\n  let ref = null;\n  for (const ln of lines) {\n    const b = bandsOfLine(wordsOfLine(page, ln.line_id));\n    if (b.length < 2) break;\n    if (ref === null) ref = b;\n    else if (!bandsMatch(b, ref)) break;\n    run.push({ line: ln, bands: b });\n  }\n  return { run: run, ref: ref };\n}\n\nfunction trailingRun(page) {\n  return collectRun(page, contentLines(page).slice().reverse());\n}\n\nfunction leadingRun(page) {\n  return collectRun(page, contentLines(page));\n}\n\n// --- main -------------------------------------------------------\nconst input = $input.first().json;\nconst pages = (input.pages || []).slice()\n  .sort((a, b) => a.page_index - b.page_index);\n\nif (!pages.length) {\n  throw new Error('Detect Table Continuation: no pages on input item.');\n}\nconst noGeometry = pages\n  .filter((p) => !p.words || !p.lines)\n  .map((p) => p.page_index);\nif (noGeometry.length) {\n  throw new Error(\n    'Detect Table Continuation: pages missing lines/words geometry: ' +\n    JSON.stringify(noGeometry));\n}\n\n// default every page to \"no continuation\" so the field always exists\nfor (const p of pages) {\n  p.table_continuation = { fires: false };\n  p.continuation_hint = '';\n}\n\n// carried header: a table spanning 3+ pages keeps the header from the page where it actually started, not from an intermediate page of bare rows\nlet carried = null;\n\nfor (let i = 0; i < pages.length - 1; i++) {\n  const prev = pages[i];\n  const next = pages[i + 1];\n\n  const tail = trailingRun(prev);\n  const head = leadingRun(next);\n\n  const fires =\n    tail.run.length >= MIN_RUN &&\n    head.run.length >= MIN_RUN &&\n    bandsMatch(tail.ref, head.ref);\n\n  if (!fires) {\n    carried = null;\n    continue;\n  }\n\n  // Where do the column labels come from? Normally the topmost line of the trailing run -- that is the header row. But if THIS page was itself a continuation, its topmost line is a data row, so reuse the carried header.\n  let headerCells;\n  if (prev.table_continuation.fires && carried &&\n      carried.length === tail.ref.length) {\n    headerCells = carried;\n  } else {\n    const topLine = tail.run[tail.run.length - 1].line;\n    headerCells = cellsOfLine(wordsOfLine(prev, topLine.line_id));\n  }\n\n  // Guard: the hint is only meaningful if we recovered one label per column.\n  if (headerCells.length !== tail.ref.length) {\n    carried = null;\n    continue;\n  }\n\n  next.table_continuation = {\n    fires: true,\n    header_cells: headerCells,\n    ncols: headerCells.length,\n    from_page_index: prev.page_index,\n    rows_detected: head.run.length,\n    bands: head.ref,\n  };\n  next.continuation_hint = buildHint(headerCells);\n  carried = headerCells;\n}\n\nconst firing = pages\n  .filter((p) => p.table_continuation.fires)\n  .map((p) => p.page_index);\n\nreturn [{\n  json: Object.assign({}, input, {\n    pages: pages,\n    continuation_detected: firing.length > 0,\n    continuation_pages: firing,\n  }),\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        720
+      ],
+      "id": "f3158df9-d37e-4738-a925-f8e7c87bbe16",
+      "name": "Code in JavaScript"
     }
   ],
   "pinData": {},
@@ -946,7 +959,7 @@
       "main": [
         [
           {
-            "node": "Split Document Pages",
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
@@ -960,22 +973,6 @@
             "node": "Merge",
             "type": "main",
             "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge": {
-      "main": [
-        [
-          {
-            "node": "Redact PII",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Anonymize PII",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1226,6 +1223,33 @@
           }
         ]
       ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Anonymize PII",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Redact PII",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Split Document Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -1234,7 +1258,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "8c4c527f-3e1c-48cf-84d5-43a9e757fc63",
+  "versionId": "b92ecb3f-ce29-44f8-ac1b-d8626ee6f75f",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ad158d3a9781a2bfed076aa2664baf5ba8cb64c389f513f013cfb25bafc9b28e"
