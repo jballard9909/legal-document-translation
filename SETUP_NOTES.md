@@ -2,10 +2,7 @@
 
 Running log of validation steps, design decisions, and scoping calls made
 during development of the ABC Link legal document translation pipeline. This
-file exists to keep deferred scope and verification work visible rather than
-silently dropped — see the project's own principle: architecture diagrams,
-setup notes, and design docs should show phase-2 items and validation history
-explicitly rather than hiding gaps.
+file exists to keep deferred scope and verification work visible.
 
 ---
 
@@ -31,7 +28,7 @@ including a case built specifically to reproduce the newline-adjacent shape
 v2 introduces — a placeholder immediately followed by a line break rather
 than a space, matching v2's real output byte-for-byte.
 
-**Model:** Gemini 3.5 Flash
+**Model:** Gemini 2.5 Flash
 
 **Result:** 100% survival (12/12 token checks), including both
 newline-adjacency cases.
@@ -45,37 +42,15 @@ what it confirmed and why the check was needed.
 
 ---
 
-## INTAKE — EMAIL ADDRESS SCOPE DECISION
-
-The client email address submitted through the intake form is deliberately
-excluded from the PII privacy chain. It is collected as plain form data and
-travels through the workflow in the clear to the delivery node.
-
-This is intentional, not an oversight. The email address is the delivery
-destination — anonymizing it would make the package undeliverable. It is the
-one field whose function requires it to remain in plaintext.
-
-Scope of collection is minimized accordingly: the form collects only the
-document and the delivery address. Client name was considered and deliberately
-dropped — nothing in the pipeline consumes it, so collecting it would have
-expanded PII surface with no functional justification.
-
-The document itself receives full privacy-chain treatment (local OCR → local
-PII detection → text anonymization + image redaction before any cloud call).
-The distinction is: document contents are protected by architecture; the
-delivery address is protected by minimization.
-
----
-
 ## Root-cause correction: the "fused rows" are not an OCR defect
 
-The original handoff attributed rows like `Payment method ... Health insurance ... Uninsured medical/dental ...` running together on one line to OCR quality. Verified false: `/ocr`'s own `text` and `lines[]` output preserve all rows as separate lines (distinct `line_id` values, e.g. `10:4:1` / `10:4:2` / `10:4:3`). The fusion is introduced by Build Structured Text's paragraph-join rule — lines sharing a `block:par` prefix get joined with a space — meeting a table, where Tesseract grouped multiple table rows into one paragraph. Confirmed against all five pages; the same mechanism also fused the asset/liability table's first two rows.
+Originally, rows like `Payment method ... Health insurance ... Uninsured medical/dental ...` running together on one line was considered an OCR quality problem. Verified false: `/ocr`'s own `text` and `lines[]` output preserve all rows as separate lines (distinct `line_id` values, e.g. `10:4:1` / `10:4:2` / `10:4:3`). The fusion is introduced by Build Structured Text's paragraph-join rule (lines sharing a `block:par` prefix get joined with a space) meeting a table, where Tesseract grouped multiple table rows into one paragraph. Confirmed against all five pages; the same mechanism also fused the asset/liability table's first two rows.
 
 ---
 
 ## Known model behavior: confident-wrong correction of OCR garble (two confirmed instances)
 
-- Diagnostic testing (`table_continuation_hint_test_v2.py`, 20 reps): 1-in-5 reps silently "corrected" `5596`/`4596` to `55%`/`45%` despite the prompt instructing verbatim preservation of OCR-damaged figures. Reps 1, 2, 4, 5 carried the garble through correctly; rep 3 fixed it.
+- Diagnostic testing (`table_continuation_hint_test_v2.py`, 20 reps): 1-in-5 reps silently "corrected" `5596`/`4596` to `55%`/`45%` despite the prompt strictly instructing preservation of OCR-damaged figures. Reps 1, 2, 4, 5 carried the garble through correctly; rep 3 fixed it.
 - Confirmed again in a delivered PDF's asset table: the OCR fragment `Rivergrove,Hé&pondent` was split by Gemini into "Rivergrove" + "Respondent," dropping the garbled "Hé&" — a plausible but unverified interpretation.
 
 Both are the same failure mode: the model resolving ambiguous/garbled source text with unwarranted confidence instead of flagging it.
@@ -106,10 +81,10 @@ When a table is spliced across a page boundary, the source page's original foote
 
 ## Not a pipeline issue: Google Drive's own OCR on appended source pages
 
-When inspecting delivered PDFs via Drive's text extraction, the appended original-English source pages showed their own unrelated garble (e.g. "Rivergrove, FR 00000" → "Rivergrove, FRRespondent"). This is Google's OCR of the rasterized source images at read-time, entirely outside this pipeline — noting it so it isn't later mistaken for a regression when someone diffs text extractions.
+When inspecting delivered PDFs via Drive's text extraction, the appended original-English source pages showed their own unrelated garble (e.g. "Rivergrove, FR 00000" → "Rivergrove, FRRespondent"). This is Google's OCR of the rasterized source images at read-time, entirely outside this pipeline.
 
 ---
 
 ## Known issue: signature block instability
 
-The "IX. ORDER" / `APPROVED AS TO FORM AND CONTENT:` signature block shows unstable structure across independent Gemini calls on byte-identical input — confirmed three distinct outcomes across three real runs: escape-hatch-flagged plain text, unflagged plain paragraphs, and an unflagged table with swapped Petitioner/Respondent attribution. Root cause not yet diagnosed.
+The "IX. ORDER" / `APPROVED AS TO FORM AND CONTENT:` signature block shows unstable structure across independent Gemini calls on byte-identical input. Confirmed three distinct outcomes across three real runs: escape-hatch-flagged plain text, unflagged plain paragraphs, and an unflagged table with swapped Petitioner/Respondent attribution. Root cause not yet diagnosed.
