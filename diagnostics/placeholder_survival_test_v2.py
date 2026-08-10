@@ -41,7 +41,12 @@ Everything else — the CASES structure, build_prompt (the production-like
 translation prompt), the retry/backoff loop, the report format — is identical
 to v1.
 
-Run:  python placeholder_survival_test_v2.py
+Run:  python placeholder_survival_test_v2.py <model-name>
+     e.g. python placeholder_survival_test_v2.py gemini-2.5-flash
+
+The model is a REQUIRED argument with no default. A result file whose model
+was assumed rather than stated is not evidence — and this test exists to
+produce evidence about the model that ships, which has changed once already.
 Requires: GEMINI_API_KEY in env, google-genai installed in the abclink env.
 100% synthetic. No real PII.
 """
@@ -53,16 +58,24 @@ import json
 import time
 
 try:
-    from google import genai
+     from google import genai
 except ImportError:
-    sys.exit("google-genai not installed. Run: pip install google-genai")
+     sys.exit("google-genai not installed. Run: pip install google-genai")
+ 
+if len(sys.argv) != 2:
+    sys.exit(
+        "Usage: python placeholder_survival_test_v2.py <model-name>\n"
+        "  e.g. python placeholder_survival_test_v2.py gemini-2.5-flash\n"
+        "Model is required, not defaulted — see module docstring."
+    )
+MODEL_NAME = sys.argv[1]
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 if not API_KEY:
     sys.exit("GEMINI_API_KEY not set. Export it in the abclink env before running.")
 
 client = genai.Client(api_key=API_KEY)
-MODEL_NAME = "gemini-3.5-flash"
+print(f"Running placeholder survival against model: {MODEL_NAME}\n")
 
 # --- Placeholder formats under test ------------------------------------------
 # v1 tested four candidate formats to CHOOSE one. That choice is made --
